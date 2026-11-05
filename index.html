@@ -365,6 +365,35 @@ svg.map{width:100%;height:auto;display:block}
   .hud-mid .chip.k2,.logo{display:none}
   .btn{min-width:0;flex:1 1 220px}
 }
+/* telefoon: lange schermen beginnen bovenaan (niet afgesneden), alles compacter */
+@media (max-width:600px){
+  #stage{align-items:flex-start;padding:62px 10px 18px}
+  .scene{margin:auto 0}
+  .panel{border-radius:18px;padding:16px}
+  #hud{gap:8px;padding:8px 10px}
+  .hud-mid{gap:8px;justify-content:flex-start}
+  .chip{padding:4px 8px;font-size:12px}
+  .slots{gap:4px}.slot{width:28px;height:28px;border-radius:8px}.slot svg{width:18px;height:18px}
+  .hud-btns{gap:4px}.ib{width:32px;height:32px;font-size:15px;border-radius:8px}
+  #bFull{display:none}
+  #settings{top:48px;right:10px}
+  h1.t{font-size:clamp(26px,8vw,36px)}
+  .story .art{width:110px}
+  .end .art{width:130px}
+  .holo-planet{width:min(200px,60vw);margin:0 auto}
+  .fact{padding:12px 14px;font-size:17px}
+  .card{padding:16px}
+  .card .ic{width:72px;height:72px;margin-bottom:8px}.card .ic svg{width:52px;height:52px}
+  .cards{gap:10px;margin-top:12px}.or{font-size:16px}
+  .choices{gap:10px;margin-top:16px}
+  .btn{flex:1 1 100%}
+  .stamp{font-size:clamp(18px,6vw,26px);border-width:4px;padding:4px 14px}
+}
+/* aanraakscherm: geen toetsenbordhints */
+@media (hover:none) and (pointer:coarse){
+  .kbd{display:none!important}
+  .card:hover{transform:none}
+}
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
@@ -411,6 +440,7 @@ svg.map{width:100%;height:auto;display:block}
     <label>Geluidseffecten <input type="range" id="sSfxVol" min="0" max="1" step="0.05"></label>
     <label>Omgevingsgeluid <input type="range" id="sAmbVol" min="0" max="1" step="0.05"></label>
     <small>Omgevingsgeluid is de wind op de planeet, de storm en de nachtgeluiden. Terwijl de stem praat, wordt het vanzelf zachter.</small>
+    <label id="lVibe" style="display:none">Trillen (telefoon) <input type="checkbox" id="sVibe"></label>
     <label>Strikte modus <input type="checkbox" id="sStrict"></label>
     <small>Strikte modus: bij keuzes over uitrusting kun je alleen klikken op wat jullie echt hebben ingepakt. Zet hem uit als de groep zelf wil kiezen, net als in de oude PowerPoint.</small>
     <label style="margin-top:14px">Ontdekte uitkomsten <button class="linkbtn" id="sClear">wissen</button></label>
@@ -434,7 +464,7 @@ const STORE = 'ruimte-expeditie-v1';
 function loadStore(){ try{ return JSON.parse(localStorage.getItem(STORE)) || {}; }catch(e){ return {}; } }
 function saveStore(o){ try{ localStorage.setItem(STORE, JSON.stringify(o)); }catch(e){} }
 const store = loadStore();
-const settings = Object.assign({sound:true, music:true, voice:true, rate:1.0, musVol:.5, sfxVol:.8, ambVol:.35, strict:true, voiceURI:null, fallback:false}, store.settings || {});
+const settings = Object.assign({sound:true, music:true, voice:true, rate:1.0, musVol:.5, sfxVol:.8, ambVol:.35, strict:true, vibrate:true, voiceURI:null, fallback:false}, store.settings || {});
 store.combos = store.combos || {};
 function persist(){ store.settings = settings; saveStore(store); }
 
@@ -746,6 +776,20 @@ requestAnimationFrame(frame);
 
 /* zaklamp volgt de muis */
 addEventListener('pointermove', e => { const t = $('#torch'); t.style.setProperty('--mx', e.clientX + 'px'); t.style.setProperty('--my', e.clientY + 'px'); });
+
+/* Trillen op telefoons (Android; iPhones ondersteunen dit niet). Elk geluidseffect krijgt een passend trilpatroon. */
+const CAN_VIBE = 'vibrate' in navigator && matchMedia('(pointer:coarse)').matches;
+function buzz(p){ if (!CAN_VIBE || !settings.vibrate) return; try { navigator.vibrate(p); } catch(e){} }
+const HAPTIC = {
+  click:12, select:[15,40,25], lock:[60,40,60], beep:30, stamp:90,
+  boom:[300,80,200,80,120], launch:[700,100,500], rumble:[250,120,250],
+  alarm:n => Array.from({length:(n || 5) * 2 - 1}, (_, i) => i % 2 ? 300 : 200),
+  fanfare:[30,60,30,60,80], success:[40,60,40,60,90], fail:[150,100,150,100,300],
+  flatline:[120,730,120,730,120,730,120,730,1500], glitch:[20,30,20,30,20,30,20],
+  sputter:[60,220,60,220,60,220], crank:[15,95,15,95,15,95,15,95]
+};
+for (const [k, p] of Object.entries(HAPTIC)){ const orig = SFX[k]; if (!orig) continue;
+  SFX[k] = function(...a){ buzz(typeof p === 'function' ? p(...a) : p); return orig.apply(this, a); }; }
 
 function shake(long=false){ const a = $('#app'); a.classList.remove('shake','shake-long'); void a.offsetWidth; a.classList.add(long ? 'shake-long' : 'shake'); setTimeout(()=>a.classList.remove('shake','shake-long'), long ? 2100 : 600); }
 function flash(kind){ const f = $('#flash'); f.className = ''; void f.offsetWidth; if (kind) f.className = kind; }
@@ -1075,6 +1119,10 @@ function go(id, {push=true, label=null}={}){
     el.classList.add('scene');
     stage.append(el);
     stage.scrollTop = 0;
+    if (innerWidth <= 600 && !el.dataset.watch){ el.dataset.watch = 1;
+      new MutationObserver(muts => { for (const m of muts) for (const a of m.addedNodes){
+        if (a.nodeType === 1 && (a.matches('.btn, .choices') || a.querySelector?.('.btn'))){ const r = a.getBoundingClientRect(); if (r.bottom > innerHeight) a.scrollIntoView({behavior:'smooth', block:'end'}); return; } } })
+        .observe(el, {childList:true, subtree:true}); }
     updateHUD();
     if (n.enter) n.enter();
   }, old ? 360 : 0);
@@ -1337,7 +1385,10 @@ function rowsHTML(rows, opts={}){
 /* ============================================================
    SCÈNES RENDEREN
    ============================================================ */
-const el = (html) => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstElementChild; };
+const TOUCH = matchMedia('(hover:none) and (pointer:coarse)').matches;
+const el = (html) => { const d = document.createElement('div');
+  if (TOUCH) html = html.replace(/Klik of druk op spatie/g, 'Tik om verder te gaan').replace(/ · F = volledig scherm · spatie = verder/, ' · tik om verder te gaan');
+  d.innerHTML = html.trim(); return d.firstElementChild; };
 const RENDER = {
   title(){
     const word = (w, d) => [...w].map((ch, i) => `<span style="animation-delay:${d + i*.06}s">${ch}</span>`).join('');
@@ -1578,7 +1629,7 @@ function toggleSound(){ audioInit(); settings.sound = !settings.sound; applyAudi
 $('#bFull').onclick = toggleFull; $('#bVoice').onclick = toggleVoice; $('#bMusic').onclick = toggleMusic; $('#bSound').onclick = toggleSound; $('#bBack').onclick = back;
 $('#bSet').onclick = e => { e.stopPropagation(); pickVoice(); $('#settings').classList.toggle('open'); };
 document.addEventListener('click', e => { if (!e.target.closest('#settings,#bSet')) $('#settings').classList.remove('open'); });
-$('#sRate').value = settings.rate; $('#sMusVol').value = settings.musVol; $('#sSfxVol').value = settings.sfxVol; $('#sAmbVol').value = settings.ambVol; $('#sStrict').checked = settings.strict; $('#sFallback').checked = settings.fallback;
+$('#sRate').value = settings.rate; $('#sMusVol').value = settings.musVol; $('#sSfxVol').value = settings.sfxVol; $('#sAmbVol').value = settings.ambVol; $('#sStrict').checked = settings.strict; $('#sVibe').checked = settings.vibrate; if (CAN_VIBE) $('#lVibe').style.display = ''; $('#sFallback').checked = settings.fallback;
 $('#sFallback').onchange = e => { settings.fallback = e.target.checked; persist(); };
 $('#sRate').oninput = e => { settings.rate = +e.target.value; persist(); };
 
@@ -1586,6 +1637,7 @@ $('#sMusVol').oninput = e => { settings.musVol = +e.target.value; applyAudio(); 
 $('#sSfxVol').oninput = e => { settings.sfxVol = +e.target.value; applyAudio(); persist(); };
 $('#sSfxVol').onchange = () => SFX.click();
 $('#sAmbVol').oninput = e => { settings.ambVol = +e.target.value; applyAudio(); persist(); };
+$('#sVibe').onchange = e => { settings.vibrate = e.target.checked; persist(); buzz(60); };
 $('#sStrict').onchange = e => { settings.strict = e.target.checked; persist(); const n = N[state.current]; if (n && n.choices){ const w = stage.querySelector('.choices'); if (w) w.replaceWith(choiceButtons(n)); } };
 $('#sVoice').onchange = e => { settings.voiceURI = e.target.value; persist(); pickVoice(); stopSpeak(); speakBrowser('Hallo, ik ben jullie reservestem.'); };
 $('#sClear').onclick = () => { store.combos = {}; persist(); $('#sClear').textContent = 'gewist ✓'; };
