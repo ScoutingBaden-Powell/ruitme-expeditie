@@ -1,0 +1,1597 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ruimte Expeditie</title>
+<style>
+:root{
+  --bg:#04050d; --panel:rgba(9,13,34,.74); --panel2:rgba(16,22,52,.82); --line:rgba(120,160,255,.22);
+  --text:#eef3ff; --muted:#a3b0d4; --cyan:#5ef2ff; --orange:#ff8a3d; --yellow:#ffd23f; --red:#ff3b5c;
+  --green:#3dffa2; --violet:#a78bfa; --gold:#ffcf4a;
+  --d1:#7a3b1f; --d2:#a3532a; --d3:#c86f3a;
+  --font: Bahnschrift, "DIN Alternate", "Segoe UI", system-ui, sans-serif;
+  --body: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--body);overflow:hidden}
+button{font:inherit;color:inherit}
+#app{position:fixed;inset:0;overflow:hidden}
+canvas#stars,canvas#fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+canvas#stars{z-index:0;transition:opacity 1.6s}
+canvas#fx{z-index:3}
+
+/* ---------- world (planeet) ---------- */
+#world{position:absolute;inset:0;z-index:1;opacity:0;transition:opacity 1.6s}
+.sky{position:absolute;inset:0;opacity:0;transition:opacity 1.8s}
+.s-descent{background:radial-gradient(120% 60% at 50% 120%,#ff7a2f 0,#a02a3a 35%,transparent 70%)}
+.s-day{background:linear-gradient(#ffb48a 0%,#f7a35c 40%,#e2733d 75%,#b64a2c 100%)}
+.s-hot{background:linear-gradient(#ffe39a 0%,#ffb052 45%,#ff7a32 80%,#c9471f 100%)}
+.s-dusk{background:linear-gradient(#2a1458 0%,#7b2f6e 40%,#e0634a 75%,#ffae5c 100%)}
+.s-night{background:linear-gradient(#02030c 0%,#0b0f2c 55%,#1c1240 100%)}
+.s-storm{background:linear-gradient(#3d2512 0%,#7a4a22 45%,#a8713a 100%)}
+.s-dead{background:radial-gradient(90% 70% at 50% 40%,#3a0012 0%,#12000a 70%)}
+.sun{position:absolute;width:16vmin;height:16vmin;border-radius:50%;left:68%;top:14%;
+  background:radial-gradient(circle,#fff8d6 0,#ffe08a 45%,rgba(255,170,80,.0) 72%);
+  box-shadow:0 0 80px 30px rgba(255,200,120,.45);transition:top 4s ease,opacity 2s,transform 4s;opacity:0}
+.moon{position:absolute;border-radius:50%;opacity:0;transition:opacity 2s}
+.moon.m1{width:7vmin;height:7vmin;left:16%;top:12%;background:radial-gradient(circle at 35% 35%,#e9e4ff,#8d86c9 60%,#4a4380);box-shadow:0 0 40px rgba(180,170,255,.35)}
+.moon.m2{width:3.6vmin;height:3.6vmin;left:26%;top:22%;background:radial-gradient(circle at 35% 35%,#ffe0d6,#c98a7a 60%,#6b3f3a)}
+.dunes{position:absolute;left:0;bottom:0;width:200%;height:40%;transition:fill 2s}
+.dunes path{transition:fill 2s}
+.dunes.d3{height:46%;bottom:6%;animation:drift 160s linear infinite;opacity:.9}
+.dunes.d2{height:36%;bottom:0;animation:drift 110s linear infinite}
+.dunes.d1{height:24%;bottom:-2%;animation:drift 70s linear infinite}
+.d3 path{fill:var(--d3)} .d2 path{fill:var(--d2)} .d1 path{fill:var(--d1)}
+@keyframes drift{to{transform:translateX(-50%)}}
+.rim{position:absolute;left:50%;bottom:-150vmin;width:190vmin;height:190vmin;margin-left:-95vmin;border-radius:50%;
+  background:radial-gradient(circle at 50% 30%,#ff9b4a 0,#c4502a 30%,#5a1a20 60%,#1a0710 75%);
+  box-shadow:0 0 120px 40px rgba(255,120,60,.55),inset 0 30px 80px rgba(255,220,160,.5);opacity:0;transition:opacity 2s,bottom 6s ease}
+#torch{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity 2s;
+  background:radial-gradient(circle at var(--mx,50%) var(--my,60%),rgba(255,250,220,.10) 0,rgba(255,240,200,.04) 120px,rgba(0,0,10,.86) 300px)}
+#flash{position:absolute;inset:0;z-index:4;pointer-events:none;opacity:0}
+#flash.alarm{animation:alarm 1s ease-in-out infinite}
+@keyframes alarm{0%,100%{opacity:0}50%{opacity:1;box-shadow:inset 0 0 220px 60px rgba(255,30,60,.75)}}
+#flash.white{background:#fff;animation:whiteflash .9s ease-out forwards}
+@keyframes whiteflash{0%{opacity:.95}100%{opacity:0}}
+
+body[data-theme=space] canvas#stars{opacity:1}
+body[data-theme=descent] canvas#stars{opacity:1}
+body[data-theme=descent] #world{opacity:1} body[data-theme=descent] .s-descent{opacity:1} body[data-theme=descent] .rim{opacity:1;bottom:-135vmin}
+body[data-theme=day] #world, body[data-theme=hot] #world, body[data-theme=dusk] #world, body[data-theme=night] #world, body[data-theme=storm] #world, body[data-theme=dead] #world{opacity:1}
+body[data-theme=day] .s-day{opacity:1} body[data-theme=day] .sun{opacity:1} body[data-theme=day] canvas#stars{opacity:0}
+body[data-theme=hot] .s-hot{opacity:1} body[data-theme=hot] .sun{opacity:1;top:8%;transform:scale(1.3)} body[data-theme=hot] canvas#stars{opacity:0}
+body[data-theme=hot]{--d1:#8a3a14;--d2:#b9561f;--d3:#e08035}
+body[data-theme=dusk] .s-dusk{opacity:1} body[data-theme=dusk] .sun{opacity:1;top:62%} body[data-theme=dusk] .moon{opacity:.8} body[data-theme=dusk] canvas#stars{opacity:.35}
+body[data-theme=dusk]{--d1:#3a1430;--d2:#5c1f3c;--d3:#8a3448}
+body[data-theme=night] .s-night{opacity:1} body[data-theme=night] .moon{opacity:.35} body[data-theme=night] canvas#stars{opacity:.9} body[data-theme=night] #torch{opacity:1}
+body[data-theme=night]{--d1:#07060f;--d2:#0e0b1c;--d3:#171230}
+body[data-theme=storm] .s-storm{opacity:1} body[data-theme=storm] canvas#stars{opacity:0}
+body[data-theme=storm]{--d1:#4a2a14;--d2:#6a3d1e;--d3:#8a5a30}
+body[data-theme=storm] .dunes{filter:blur(3px)}
+body[data-theme=dead] .s-dead{opacity:1} body[data-theme=dead] canvas#stars{opacity:.3}
+body[data-theme=dead]{--d1:#16040a;--d2:#22060f;--d3:#300a16}
+body[data-theme=win] canvas#stars{opacity:1}
+body[data-theme=win] #world{opacity:0}
+
+/* ---------- HUD ---------- */
+#hud{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:14px;padding:10px 16px;
+  background:linear-gradient(rgba(3,5,16,.85),rgba(3,5,16,0));transition:transform .6s,opacity .6s}
+body.notitle #hud{transform:none;opacity:1} body:not(.notitle) #hud{transform:translateY(-100%);opacity:0}
+.logo{font-family:var(--font);font-weight:700;letter-spacing:.18em;font-size:13px;color:var(--cyan);white-space:nowrap;text-shadow:0 0 12px rgba(94,242,255,.6)}
+.logo b{color:var(--orange)}
+.hud-mid{flex:1;display:flex;align-items:center;justify-content:center;gap:14px;min-width:0}
+.chip{display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:rgba(10,16,40,.6);font-family:var(--font);font-size:13px;letter-spacing:.06em;white-space:nowrap}
+.chip .k{color:var(--muted)}
+.slots{display:flex;gap:6px}
+.slot{width:36px;height:36px;border-radius:10px;border:1px dashed rgba(160,190,255,.35);display:grid;place-items:center;position:relative;background:rgba(10,16,40,.5);color:var(--cyan)}
+.slot.full{border-style:solid;border-color:rgba(94,242,255,.55);box-shadow:0 0 14px rgba(94,242,255,.25)}
+.slot svg{width:24px;height:24px}
+.slot.broken{color:#ff6b80;border-color:#ff3b5c}
+.slot.broken::after{content:"";position:absolute;left:4px;right:4px;top:50%;height:3px;background:var(--red);transform:rotate(-35deg);border-radius:3px;box-shadow:0 0 8px var(--red)}
+.slot .half{position:absolute;right:-6px;bottom:-6px;background:var(--orange);color:#200;font-size:10px;font-weight:800;border-radius:6px;padding:1px 4px}
+.samples{display:flex;gap:6px}
+.vial{font-family:var(--font);font-size:12px;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:2px solid rgba(255,255,255,.2);color:var(--muted)}
+.vial.ok{border-color:var(--green);color:#03140b;background:var(--green);box-shadow:0 0 14px rgba(61,255,162,.6)}
+.hud-btns{display:flex;gap:6px}
+.ib{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:rgba(10,16,40,.6);cursor:pointer;display:grid;place-items:center;font-size:17px;transition:.2s}
+.ib:hover{border-color:var(--cyan);box-shadow:0 0 14px rgba(94,242,255,.4)}
+.ib.off{opacity:.4}
+#settings{position:absolute;top:58px;right:16px;z-index:30;width:320px;max-width:calc(100vw - 32px);padding:16px;border-radius:16px;background:var(--panel2);border:1px solid var(--line);backdrop-filter:blur(14px);display:none}
+#settings.open{display:block;animation:pop .25s ease}
+#settings h4{margin:0 0 10px;font-family:var(--font);letter-spacing:.12em;color:var(--cyan)}
+#settings label{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0;font-size:14px}
+#settings select,#settings input[type=range]{max-width:170px}
+#settings select{background:#0b1030;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:4px}
+#settings small{color:var(--muted);display:block;line-height:1.4}
+.linkbtn{background:none;border:0;color:var(--orange);text-decoration:underline;cursor:pointer;padding:0;font-size:13px}
+
+/* ---------- stage ---------- */
+#stage{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:74px 18px 28px;overflow:auto}
+.scene{width:min(1200px,100%);animation:sceneIn .7s cubic-bezier(.2,.8,.2,1) both}
+.scene.leave{animation:sceneOut .35s ease-in forwards}
+@keyframes sceneIn{from{opacity:0;transform:translateY(30px) scale(.97);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
+@keyframes sceneOut{to{opacity:0;transform:translateY(-20px) scale(1.02);filter:blur(6px)}}
+.panel{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:clamp(18px,3vw,38px);backdrop-filter:blur(12px);
+  box-shadow:0 20px 60px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06)}
+.panel::before{content:"";position:absolute;inset:-1px;border-radius:22px;padding:1px;pointer-events:none;
+  background:linear-gradient(135deg,rgba(94,242,255,.55),transparent 35%,transparent 65%,rgba(255,138,61,.5));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.tag{display:inline-flex;align-items:center;gap:8px;font-family:var(--font);font-size:clamp(12px,1.1vw,15px);letter-spacing:.22em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px}
+.tag::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+h1.t{font-family:var(--font);font-weight:700;font-size:clamp(28px,4vw,56px);line-height:1.02;margin:0 0 18px;letter-spacing:.01em;
+  background:linear-gradient(90deg,#fff,#bfe9ff 50%,#ffd2a8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.txt{font-size:clamp(17px,1.55vw,23px);line-height:1.55;color:#e4ebff}
+.txt p{margin:0 0 .8em}
+.txt .cur::after{content:"▌";color:var(--cyan);animation:blink .7s infinite;margin-left:2px}
+.q{font-family:var(--font);font-size:clamp(19px,1.9vw,28px);color:var(--yellow);margin-top:.4em;text-shadow:0 0 18px rgba(255,210,63,.35);opacity:0;transform:translateY(8px);transition:.5s}
+.q.show{opacity:1;transform:none}
+.boom{display:block;font-family:var(--font);font-weight:900;font-size:clamp(60px,11vw,170px);letter-spacing:.06em;text-align:center;color:#fff;margin:.1em 0;
+  text-shadow:0 0 30px #ff6a00,0 0 80px #ff2a00;animation:boom .9s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes boom{0%{transform:scale(3);opacity:0;filter:blur(10px)}60%{opacity:1}100%{transform:scale(1);filter:none}}
+.story{display:grid;grid-template-columns:minmax(150px,240px) 1fr;gap:clamp(18px,3vw,40px);align-items:start}
+.art{aspect-ratio:1;border-radius:50%;display:grid;place-items:center;position:relative;
+  background:radial-gradient(circle,rgba(94,242,255,.16),rgba(94,242,255,.02) 60%,transparent 70%)}
+.art::before,.art::after{content:"";position:absolute;inset:6%;border-radius:50%;border:1px solid rgba(94,242,255,.35);animation:spin 18s linear infinite;border-top-color:transparent;border-bottom-color:transparent}
+.art::after{inset:16%;animation-duration:11s;animation-direction:reverse;border-color:rgba(255,138,61,.4);border-left-color:transparent;border-right-color:transparent}
+.art svg{width:62%;height:62%;color:var(--cyan);filter:drop-shadow(0 0 14px rgba(94,242,255,.55))}
+.art.warm svg{color:var(--orange);filter:drop-shadow(0 0 14px rgba(255,138,61,.6))}
+.art.bad svg{color:var(--red);filter:drop-shadow(0 0 14px rgba(255,59,92,.6))}
+@keyframes spin{to{transform:rotate(360deg)}}
+.a-float{animation:float 4s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-10px)}}
+.a-shake{animation:jitter .12s linear infinite}
+@keyframes jitter{25%{transform:translate(2px,-2px) rotate(1deg)}50%{transform:translate(-2px,1px)}75%{transform:translate(1px,2px) rotate(-1deg)}}
+.a-spin{animation:spin 3s linear infinite}
+.a-wobble{animation:wobble 1.4s ease-in-out infinite}
+@keyframes wobble{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(18deg)}}
+.a-flutter{animation:flutter .5s ease-in-out infinite}
+@keyframes flutter{50%{transform:skewX(8deg) scaleY(.94)}}
+.a-pulse{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.08);filter:brightness(1.4)}}
+.a-sink{animation:sink 6s ease-in forwards}
+@keyframes sink{to{transform:translateY(40%);opacity:.2}}
+.a-heavy{animation:heavy 1.1s ease-in-out infinite}
+@keyframes heavy{0%,100%{transform:translateY(0) scaleY(1)}50%{transform:translateY(8px) scaleY(.92)}}
+.a-glitch{animation:glitch 1.2s steps(2) infinite}
+@keyframes glitch{0%{transform:none}20%{transform:translate(-4px,2px) skewX(10deg)}40%{transform:translate(3px,-1px)}60%{transform:none;opacity:.6}80%{transform:translate(2px,3px) skewX(-8deg)}}
+
+/* knoppen (de beroemde gele knoppen) */
+.choices{display:flex;flex-wrap:wrap;gap:14px;margin-top:22px}
+.btn{position:relative;cursor:pointer;border:0;border-radius:16px;padding:16px 26px;min-width:190px;font-family:var(--font);font-weight:700;font-size:clamp(17px,1.5vw,22px);
+  letter-spacing:.03em;color:#2a1a00;background:linear-gradient(180deg,#ffe27a,#ffc21f);box-shadow:0 6px 0 #b8860b,0 10px 30px rgba(255,200,40,.35);
+  transition:transform .15s,box-shadow .15s,filter .2s;display:inline-flex;align-items:center;gap:12px;justify-content:center;overflow:hidden}
+.btn::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.7),transparent);transform:skewX(-20deg);animation:shine 3.2s ease-in-out infinite}
+@keyframes shine{0%,60%{left:-60%}100%{left:130%}}
+.btn:hover{transform:translateY(-3px);box-shadow:0 9px 0 #b8860b,0 16px 40px rgba(255,200,40,.5)}
+.btn:active{transform:translateY(4px);box-shadow:0 2px 0 #b8860b}
+.btn svg{width:30px;height:30px}
+.btn .kbd{font-size:12px;opacity:.6;border:1px solid rgba(0,0,0,.35);border-radius:6px;padding:1px 6px}
+.btn.mine{animation:mine 1.6s ease-in-out infinite}
+@keyframes mine{50%{box-shadow:0 6px 0 #b8860b,0 0 0 6px rgba(255,226,122,.35),0 10px 50px rgba(255,210,63,.7)}}
+.btn.locked{filter:grayscale(1) brightness(.55);cursor:not-allowed;box-shadow:0 6px 0 #444}
+.btn.locked::after{display:none}
+.btn .sub{display:block;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;opacity:.75}
+.btn.ghost{background:rgba(255,255,255,.06);color:var(--text);box-shadow:0 0 0 1px var(--line)}
+.btn.ghost:hover{box-shadow:0 0 0 1px var(--cyan),0 0 20px rgba(94,242,255,.3)}
+.btn.ghost::after{display:none}
+.hint{margin-top:18px;font-family:var(--font);letter-spacing:.14em;font-size:13px;color:var(--muted);text-transform:uppercase;opacity:0;transition:opacity .6s}
+.hint.show{opacity:1;animation:blink 1.6s infinite}
+
+/* titel */
+.title-scene{text-align:center;position:relative}
+.planet{width:min(46vmin,420px);aspect-ratio:1;margin:0 auto -4vmin;position:relative}
+.planet .ball{position:absolute;inset:0;border-radius:50%;overflow:hidden;
+  background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.35),transparent 40%),radial-gradient(circle at 70% 75%,rgba(0,0,0,.6),transparent 60%),
+  repeating-linear-gradient(170deg,#ff9a4d 0 8%,#e2603a 8% 15%,#ffbb6b 15% 20%,#c2412f 20% 30%,#ff8a3d 30% 38%);
+  background-size:100% 100%,100% 100%,300% 100%;animation:planetspin 30s linear infinite;box-shadow:0 0 80px rgba(255,138,61,.5),inset -30px -30px 80px rgba(0,0,0,.65)}
+@keyframes planetspin{to{background-position:0 0,0 0,300% 0}}
+.planet .ring{position:absolute;left:-30%;right:-30%;top:42%;height:18%;border-radius:50%;border:6px solid rgba(255,220,170,.55);transform:rotate(-14deg);
+  box-shadow:0 0 30px rgba(255,200,140,.4);clip-path:polygon(0 50%,100% 50%,100% 100%,0 100%)}
+.planet .ring.back{clip-path:polygon(0 0,100% 0,100% 50%,0 50%);z-index:-1;opacity:.6}
+.orbit{position:absolute;inset:-18%;animation:spin 14s linear infinite}
+.orbit i{position:absolute;top:0;left:50%;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#9aa9ff 60%,#4a55a0);box-shadow:0 0 18px #9aa9ff}
+.big{font-family:var(--font);font-weight:800;font-size:clamp(46px,9vw,140px);line-height:.92;letter-spacing:.04em;margin:0;text-transform:uppercase}
+.big span{display:inline-block;background:linear-gradient(180deg,#fff 10%,#9fe8ff 50%,#ff9b52 95%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:letterIn .8s cubic-bezier(.2,1.4,.4,1) both;filter:drop-shadow(0 0 22px rgba(94,242,255,.35))}
+@keyframes letterIn{from{opacity:0;transform:translateY(60px) rotateX(80deg)}to{opacity:1;transform:none}}
+.subtitle{font-size:clamp(18px,2vw,28px);color:var(--muted);margin:14px 0 28px;letter-spacing:.04em}
+.btn.huge{font-size:clamp(20px,2.2vw,30px);padding:20px 40px}
+.fine{margin-top:22px;font-size:13px;color:var(--muted);letter-spacing:.06em}
+.rocket{width:90px;position:absolute;filter:drop-shadow(0 0 20px rgba(255,138,61,.6))}
+.title-rocket{right:6%;top:6%;animation:float 3s ease-in-out infinite;transform:rotate(20deg)}
+.rocket .flame{transform-origin:50% 0;animation:flame .12s linear infinite alternate}
+@keyframes flame{from{transform:scaleY(.8)}to{transform:scaleY(1.25)}}
+.launching .title-rocket{animation:launch 2.2s cubic-bezier(.6,0,.9,.4) forwards}
+@keyframes launch{to{transform:translate(-30vw,-140vh) rotate(-10deg) scale(1.8)}}
+
+/* briefing */
+.msg-head{display:flex;align-items:center;gap:12px;font-family:var(--font);letter-spacing:.2em;font-size:13px;color:var(--orange);margin-bottom:12px;text-transform:uppercase}
+.msg-head .bars{display:flex;gap:3px;align-items:flex-end;height:16px}
+.msg-head .bars i{width:4px;background:var(--orange);animation:bars 1s ease-in-out infinite}
+.msg-head .bars i:nth-child(2){animation-delay:.15s}.msg-head .bars i:nth-child(3){animation-delay:.3s}.msg-head .bars i:nth-child(4){animation-delay:.45s}
+@keyframes bars{0%,100%{height:4px}50%{height:16px}}
+.scan{position:relative;overflow:hidden}
+.scan::after{content:"";position:absolute;left:0;right:0;height:80px;top:-80px;background:linear-gradient(transparent,rgba(94,242,255,.08),transparent);animation:scan 4s linear infinite;pointer-events:none}
+@keyframes scan{to{top:110%}}
+
+/* gebied */
+.holo{display:grid;grid-template-columns:minmax(200px,340px) 1fr;gap:30px;align-items:center}
+.holo-planet{aspect-ratio:1;border-radius:50%;position:relative;overflow:hidden;border:1px solid rgba(94,242,255,.5);
+  background:radial-gradient(circle at 35% 35%,rgba(94,242,255,.35),rgba(10,40,80,.4) 60%,rgba(0,0,0,.6)),repeating-linear-gradient(0deg,rgba(94,242,255,.25) 0 1px,transparent 1px 18px),repeating-linear-gradient(90deg,rgba(94,242,255,.18) 0 1px,transparent 1px 18px);
+  box-shadow:0 0 50px rgba(94,242,255,.35),inset 0 0 60px rgba(94,242,255,.3);animation:holo 6s linear infinite}
+@keyframes holo{to{background-position:0 0,0 180px,180px 0}}
+.holo-planet::after{content:"";position:absolute;left:0;right:0;height:30%;background:linear-gradient(transparent,rgba(94,242,255,.45),transparent);animation:scan 2.6s linear infinite;top:-30%}
+.facts{display:grid;gap:14px}
+.fact{display:flex;align-items:center;gap:16px;padding:16px 20px;border-radius:16px;background:rgba(94,242,255,.06);border:1px solid rgba(94,242,255,.25);
+  font-size:clamp(18px,1.8vw,26px);font-family:var(--font);opacity:0;transform:translateX(30px);transition:.6s cubic-bezier(.2,1.2,.4,1)}
+.fact.show{opacity:1;transform:none}
+.fact .em{font-size:1.5em}
+
+/* uitrusting kiezen */
+.gear-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.steps{display:flex;gap:8px}
+.steps i{width:38px;height:6px;border-radius:6px;background:rgba(255,255,255,.15);transition:.4s}
+.steps i.on{background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+.steps i.done{background:var(--green)}
+.cards{display:grid;grid-template-columns:1fr auto 1fr;gap:clamp(12px,2.5vw,30px);align-items:stretch;margin-top:18px}
+.or{align-self:center;font-family:var(--font);font-size:22px;color:var(--muted);letter-spacing:.2em}
+.card{cursor:pointer;position:relative;border-radius:20px;padding:24px;border:1px solid var(--line);background:linear-gradient(160deg,rgba(30,40,90,.7),rgba(10,14,34,.8));
+  transition:transform .3s,box-shadow .3s,border-color .3s;animation:cardIn .7s cubic-bezier(.2,1.3,.4,1) both;text-align:left}
+.card:nth-of-type(3){animation-delay:.12s}
+@keyframes cardIn{from{opacity:0;transform:rotateY(70deg) translateY(30px)}to{opacity:1;transform:none}}
+.card:hover{transform:translateY(-8px) rotateX(4deg);border-color:var(--cyan);box-shadow:0 20px 50px rgba(94,242,255,.25)}
+.card .ic{width:110px;height:110px;margin:0 auto 14px;display:grid;place-items:center;border-radius:50%;background:radial-gradient(circle,rgba(94,242,255,.2),transparent 70%);color:var(--cyan)}
+.card .ic svg{width:78px;height:78px;filter:drop-shadow(0 0 12px rgba(94,242,255,.6));animation:float 3.5s ease-in-out infinite}
+.card h3{font-family:var(--font);font-size:clamp(20px,2vw,28px);margin:0 0 8px;text-align:center}
+.card p{margin:0 0 14px;color:#cfd8f5;font-size:clamp(15px,1.3vw,19px);line-height:1.45;text-align:center}
+.weight{display:flex;align-items:center;gap:10px;font-family:var(--font);font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.weight .bar{flex:1;height:8px;border-radius:8px;background:rgba(255,255,255,.1);overflow:hidden}
+.weight .bar i{display:block;height:100%;border-radius:8px}
+.card .pick{margin-top:16px;width:100%}
+.bay{margin-top:24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 18px;border-radius:16px;border:1px solid var(--line);background:rgba(0,0,0,.25)}
+.bay .lbl{font-family:var(--font);letter-spacing:.16em;font-size:13px;color:var(--muted);text-transform:uppercase}
+.bay .slots .slot{width:54px;height:54px;border-radius:14px}
+.bay .slots .slot svg{width:34px;height:34px}
+.meter{flex:1;min-width:160px}
+.meter .bar{height:12px;border-radius:12px;background:rgba(255,255,255,.08);overflow:hidden}
+.meter .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--green),var(--yellow),var(--red));transition:width .8s cubic-bezier(.2,1.3,.4,1)}
+.meter .cap{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:4px;font-family:var(--font);letter-spacing:.1em}
+.flyer{position:fixed;z-index:50;pointer-events:none;color:var(--cyan);filter:drop-shadow(0 0 14px var(--cyan))}
+.overview{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:20px 0}
+.ov{border-radius:18px;padding:18px;text-align:center;border:1px solid rgba(94,242,255,.35);background:rgba(94,242,255,.06);animation:cardIn .6s both}
+.ov svg{width:64px;height:64px;color:var(--cyan);filter:drop-shadow(0 0 10px rgba(94,242,255,.6))}
+.ov .c{font-family:var(--font);font-size:12px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-top:6px}
+.ov .n{font-family:var(--font);font-size:clamp(16px,1.5vw,21px);margin-top:4px}
+#countdown{position:absolute;inset:0;z-index:40;display:grid;place-items:center;pointer-events:none}
+#countdown span{font-family:var(--font);font-weight:900;font-size:min(40vmin,380px);color:#fff;text-shadow:0 0 60px var(--orange),0 0 120px var(--red);animation:cd 1s ease-out forwards}
+@keyframes cd{from{transform:scale(2.4);opacity:0}30%{opacity:1}to{transform:scale(.7);opacity:0}}
+
+/* kaart */
+.mapwrap{display:grid;grid-template-columns:1.55fr 1fr;gap:clamp(14px,2vw,26px);align-items:stretch}
+.mapbox{position:relative;border-radius:20px;overflow:hidden;border:1px solid var(--line);
+  background:radial-gradient(circle at 50% 50%,rgba(40,60,130,.35),rgba(5,8,22,.85)),repeating-linear-gradient(0deg,rgba(94,242,255,.06) 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,rgba(94,242,255,.06) 0 1px,transparent 1px 40px)}
+.mapbox .mt{position:absolute;left:18px;top:14px;font-family:var(--font);font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--cyan);font-size:clamp(13px,1.2vw,17px);z-index:2}
+svg.map{width:100%;height:auto;display:block}
+.map .edge{fill:none;stroke:#dfe8ff;stroke-width:4;stroke-linecap:round}
+.map .edge.thin{stroke-width:2.2;stroke:#c8d4f5;stroke-dasharray:7 7}
+.map .edge.draw{animation:drawline 1.1s ease forwards}
+@keyframes drawline{from{stroke-dashoffset:var(--len)}to{stroke-dashoffset:0}}
+.map .lab{font-family:var(--font);font-size:22px;fill:#dfe8ff;text-anchor:middle;opacity:0;animation:fadein .6s forwards}
+.map .lab.red{fill:#ff5470;font-weight:700;font-size:24px;filter:drop-shadow(0 0 6px rgba(255,59,92,.7))}
+.map .node text{font-family:var(--font);font-weight:700;font-size:22px;text-anchor:middle;fill:#081022}
+.map .node{animation:nodein .7s cubic-bezier(.2,1.5,.4,1) both;transform-box:fill-box;transform-origin:center}
+@keyframes nodein{from{transform:scale(0);opacity:0}to{transform:none;opacity:1}}
+@keyframes fadein{to{opacity:1}}
+.map .ring{fill:none;stroke:var(--green);stroke-width:12;filter:drop-shadow(0 0 10px var(--green));animation:fadein .8s .9s both;opacity:0}
+.map .halo{fill:none;stroke-width:2;opacity:.6;animation:halo 2.4s ease-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes halo{from{transform:scale(1);opacity:.7}to{transform:scale(1.45);opacity:0}}
+.map .storm{transform-box:fill-box;transform-origin:center;animation:stormspin 6s linear infinite}
+@keyframes stormspin{to{transform:rotate(360deg)}}
+.map .trail{fill:none;stroke:var(--yellow);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;opacity:.85;filter:drop-shadow(0 0 6px rgba(255,210,63,.8))}
+.map .team circle.core{fill:#ff3b5c;stroke:#fff;stroke-width:3}
+.map .team circle.glow{fill:rgba(255,59,92,.35);animation:halo 1.4s ease-out infinite;transform-box:fill-box;transform-origin:center}
+.side{display:flex;flex-direction:column;gap:12px}
+.box{border-radius:16px;padding:14px 16px;border:1px solid var(--line);background:rgba(10,14,34,.6);animation:sideIn .6s both}
+.box:nth-child(2){animation-delay:.1s}.box:nth-child(3){animation-delay:.2s}.box:nth-child(4){animation-delay:.3s}
+@keyframes sideIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+.box h5{margin:0 0 8px;font-family:var(--font);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.speed{display:flex;align-items:baseline;gap:8px;font-family:var(--font)}
+.speed b{font-size:clamp(28px,3vw,44px);color:var(--cyan);text-shadow:0 0 16px rgba(94,242,255,.5)}
+.speed span{color:var(--muted)}
+.glist{display:flex;flex-wrap:wrap;gap:8px}
+.gi{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:10px;background:rgba(94,242,255,.08);border:1px solid rgba(94,242,255,.25);font-size:15px}
+.gi svg{width:20px;height:20px;color:var(--cyan)}
+.gi.x{text-decoration:line-through;text-decoration-color:var(--red);text-decoration-thickness:3px;opacity:.6;border-color:rgba(255,59,92,.5)}
+.rows{display:grid;gap:6px}
+.row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:7px 10px;border-radius:10px;font-size:clamp(14px,1.2vw,17px);background:rgba(255,255,255,.03);opacity:0;animation:fadein .5s forwards}
+.row .v{font-family:var(--font);font-weight:700;white-space:nowrap}
+.row.good .v{color:var(--green)} .row.warn .v{color:var(--yellow)} .row.bad .v{color:#ff6b80} .row.x .v,.row.x .l{text-decoration:line-through;opacity:.5}
+.row.me{background:rgba(255,210,63,.12);box-shadow:0 0 0 2px rgba(255,210,63,.7),0 0 24px rgba(255,210,63,.25)}
+.row.me .l::after{content:" ◀ jullie";font-family:var(--font);font-size:.75em;letter-spacing:.1em;color:var(--yellow)}
+.row .note{grid-column:1/-1;font-size:.82em;color:var(--violet)}
+.rgroup{font-family:var(--font);font-size:13px;letter-spacing:.08em;color:var(--orange);margin:8px 0 2px}
+.bulls{margin:0;padding-left:1.1em;font-size:clamp(16px,1.4vw,20px);line-height:1.5}
+.bulls li{margin:.3em 0}
+
+/* rekenen */
+.data{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.locs{display:flex;gap:10px;flex-wrap:wrap}
+.loc{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;font-family:var(--font);font-size:18px;border:1px solid}
+.loc.ok{border-color:var(--green);color:var(--green);background:rgba(61,255,162,.08)}
+.loc.no{border-color:#ff6b80;color:#ff6b80;background:rgba(255,59,92,.08)}
+.loc small{color:var(--violet);font-size:14px}
+.wbar{position:relative;height:10px;margin:4px 0 0;border-radius:10px;background:rgba(255,255,255,.06);grid-column:1/-1}
+.wbar::before{content:"";position:absolute;left:30%;top:-4px;bottom:-4px;width:2px;background:rgba(255,255,255,.5)}
+.wbar i{position:absolute;top:0;bottom:0;border-radius:10px;width:0;transition:width 1.2s cubic-bezier(.2,1,.3,1) .4s}
+.wbar i.pos{left:30%;background:linear-gradient(90deg,#2bd88a,var(--green))}
+.wbar i.neg{right:70%;background:linear-gradient(270deg,#ff6b80,var(--red))}
+.legend{font-size:12px;color:var(--muted);margin-top:6px}
+
+/* eindes */
+.end{text-align:center}
+.end .art{width:min(240px,50vw);margin:0 auto 10px}
+.end h1.t{font-size:clamp(34px,5.5vw,80px)}
+.end .txt{max-width:900px;margin:0 auto;text-align:left}
+.stamp{display:inline-block;font-family:var(--font);font-weight:900;font-size:clamp(22px,3.2vw,44px);letter-spacing:.1em;max-width:min(90%,720px);line-height:1.15;color:var(--red);border:6px solid var(--red);border-radius:12px;padding:6px 22px;transform:rotate(-4deg);
+  animation:stamp .5s cubic-bezier(.2,1.6,.4,1) both;text-shadow:0 0 18px rgba(255,59,92,.5);margin:14px 0 34px}
+@keyframes stamp{from{transform:rotate(-4deg) scale(3);opacity:0}to{transform:rotate(-4deg) scale(1);opacity:1}}
+.stamp.gold{color:var(--gold);border-color:var(--gold);text-shadow:0 0 18px rgba(255,207,74,.6)}
+.stamp.cyan{color:var(--cyan);border-color:var(--cyan)}
+.ecg{width:100%;max-width:520px;height:90px;margin:0 auto;display:block}
+.ecg path{fill:none;stroke:var(--red);stroke-width:3;stroke-dasharray:1400;stroke-dashoffset:1400;animation:ecg 3.5s linear forwards;filter:drop-shadow(0 0 6px var(--red))}
+@keyframes ecg{to{stroke-dashoffset:0}}
+.grid16{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:16px 0}
+.cell{border-radius:12px;padding:10px 6px;text-align:center;border:1px solid var(--line);background:rgba(255,255,255,.03);font-size:12px;color:var(--muted);line-height:1.3}
+.cell .e{font-size:26px;display:block;margin-bottom:4px;filter:grayscale(1);opacity:.35}
+.cell.found{border-color:rgba(94,242,255,.5);background:rgba(94,242,255,.07);color:var(--text)}
+.cell.found .e{filter:none;opacity:1}
+.cell.now{box-shadow:0 0 0 2px var(--yellow),0 0 20px rgba(255,210,63,.4)}
+.route{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0 4px}
+.route span{padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:13px}
+.final-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:26px;text-align:left}
+
+.shake{animation:screenshake .5s cubic-bezier(.36,.07,.19,.97) both}
+.shake-long{animation:screenshake .5s cubic-bezier(.36,.07,.19,.97) 4 both}
+@keyframes screenshake{10%,90%{transform:translate(-2px,1px)}20%,80%{transform:translate(4px,-2px)}30%,50%,70%{transform:translate(-8px,4px) rotate(-.4deg)}40%,60%{transform:translate(8px,-3px) rotate(.4deg)}}
+@keyframes pop{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
+
+@media (max-width:860px){
+  .story,.mapwrap,.holo,.data,.final-grid{grid-template-columns:1fr}
+  .story .art{width:150px;margin:0 auto}
+  .cards{grid-template-columns:1fr}.or{text-align:center}
+  .overview{grid-template-columns:repeat(2,1fr)}
+  .hud-mid .chip.k2,.logo{display:none}
+  .btn{min-width:0;flex:1 1 220px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body data-theme="space">
+<div id="app">
+  <canvas id="stars"></canvas>
+  <div id="world">
+    <div class="sky s-descent"></div><div class="sky s-day"></div><div class="sky s-hot"></div><div class="sky s-dusk"></div>
+    <div class="sky s-night"></div><div class="sky s-storm"></div><div class="sky s-dead"></div>
+    <div class="sun"></div><div class="moon m1"></div><div class="moon m2"></div>
+    <div class="rim"></div>
+    <svg class="dunes d3" viewBox="0 0 2000 300" preserveAspectRatio="none"><path d="M0 180 C150 90 300 110 450 160 S750 60 1000 150 C1150 90 1300 110 1450 160 S1750 60 2000 150 V300 H0Z"/></svg>
+    <svg class="dunes d2" viewBox="0 0 2000 300" preserveAspectRatio="none"><path d="M0 160 C200 60 380 220 600 140 S850 90 1000 160 C1200 60 1380 220 1600 140 S1850 90 2000 160 V300 H0Z"/></svg>
+    <svg class="dunes d1" viewBox="0 0 2000 300" preserveAspectRatio="none"><path d="M0 120 C250 40 400 200 700 110 S900 150 1000 120 C1250 40 1400 200 1700 110 S1900 150 2000 120 V300 H0Z"/></svg>
+  </div>
+  <div id="torch"></div>
+  <canvas id="fx"></canvas>
+  <div id="flash"></div>
+
+  <header id="hud">
+    <div class="logo">RUIMTE <b>EXPEDITIE</b> · SIM</div>
+    <div class="hud-mid">
+      <div class="chip" id="dayChip"><span class="k">DAG</span><b id="dayVal">–</b></div>
+      <div class="slots" id="hudSlots"></div>
+      <div class="chip k2"><span class="k">MONSTERS</span><div class="samples"><div class="vial" id="vX">X</div><div class="vial" id="vY">Y</div></div></div>
+    </div>
+    <div class="hud-btns">
+      <button class="ib" id="bBack" title="Vorige dia (Backspace)">↩</button>
+      <button class="ib" id="bSound" title="Geluidseffecten (G)">🔊</button>
+      <button class="ib" id="bMusic" title="Muziek (M)">🎵</button>
+      <button class="ib" id="bVoice" title="Voorlezen (V)">🗣️</button>
+      <button class="ib" id="bSet" title="Instellingen">⚙️</button>
+      <button class="ib" id="bFull" title="Volledig scherm (F)">⛶</button>
+    </div>
+  </header>
+  <div id="settings">
+    <h4>INSTELLINGEN</h4>
+    <label>Reservestem als opname ontbreekt <input type="checkbox" id="sFallback"></label>
+    <label>Reservestem (browser) <select id="sVoice"></select></label>
+    <label>Spreeksnelheid <input type="range" id="sRate" min="0.7" max="1.4" step="0.05"></label>
+    <label>Muziekvolume <input type="range" id="sMusVol" min="0" max="1" step="0.05"></label>
+    <label>Geluidseffecten <input type="range" id="sSfxVol" min="0" max="1" step="0.05"></label>
+    <label>Omgevingsgeluid <input type="range" id="sAmbVol" min="0" max="1" step="0.05"></label>
+    <small>Omgevingsgeluid is de wind op de planeet, de storm en de nachtgeluiden. Terwijl de stem praat, wordt het vanzelf zachter.</small>
+    <label>Strikte modus <input type="checkbox" id="sStrict"></label>
+    <small>Strikte modus: bij keuzes over uitrusting kun je alleen klikken op wat jullie echt hebben ingepakt. Zet hem uit als de groep zelf wil kiezen, net als in de oude PowerPoint.</small>
+    <label style="margin-top:14px">Ontdekte uitkomsten <button class="linkbtn" id="sClear">wissen</button></label>
+    <small>Sneltoetsen: spatie/→ = verder · 1-3 = keuze · Backspace = terug · F = volledig scherm · V = voorlezen · M = muziek · G = geluid</small>
+  </div>
+
+  <main id="stage"></main>
+  <div id="countdown"></div>
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const rand = (a, b) => a + Math.random() * (b - a);
+
+/* ============================================================
+   INSTELLINGEN & STATUS
+   ============================================================ */
+const STORE = 'ruimte-expeditie-v1';
+function loadStore(){ try{ return JSON.parse(localStorage.getItem(STORE)) || {}; }catch(e){ return {}; } }
+function saveStore(o){ try{ localStorage.setItem(STORE, JSON.stringify(o)); }catch(e){} }
+const store = loadStore();
+const settings = Object.assign({sound:true, music:true, voice:true, rate:1.0, musVol:.5, sfxVol:.8, ambVol:.35, strict:true, voiceURI:null, fallback:false}, store.settings || {});
+store.combos = store.combos || {};
+function persist(){ store.settings = settings; saveStore(store); }
+
+const state = { gear:{}, day:null, samples:{X:false,Y:false}, flags:{}, route:[], history:[], current:null, theme:'space' };
+
+/* ============================================================
+   ICONEN
+   ============================================================ */
+const IC = {
+  S:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><rect x="25" y="25" width="14" height="14" rx="2" transform="rotate(45 32 32)"/><path d="M6 22l9-9 9 9-9 9z"/><path d="M40 51l9-9 9 9-9 9z" transform="translate(0 -9)"/><path d="M22 22l4 4M38 38l4 4"/><path d="M38 14a12 12 0 0 1 12 12M40 6a20 20 0 0 1 18 18"/></svg>`,
+  K:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><circle cx="32" cy="34" r="22"/><path d="M32 16l6 18-6 18-6-18z" fill="currentColor" fill-opacity=".2"/><path d="M32 16l6 18H26z" fill="currentColor"/><circle cx="32" cy="34" r="2.5" fill="currentColor"/><path d="M52 4l1.6 3.4L57 9l-3.4 1.6L52 14l-1.6-3.4L47 9l3.4-1.6z" fill="currentColor" stroke-width="1.5"/></svg>`,
+  H:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><rect x="6" y="24" width="32" height="28" rx="5"/><circle cx="22" cy="38" r="7"/><path class="crank" d="M38 38h9V22h8"/><circle cx="56" cy="22" r="3" fill="currentColor"/><path d="M24 4l-7 11h8l-5 9" stroke-width="3.5"/></svg>`,
+  Z:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><circle cx="15" cy="13" r="6"/><path d="M15 2v3M15 21v3M4 13h3M23 13h3M7 5l2 2M21 19l2 2M7 21l2-2"/><path d="M20 32h38l-6 24H10z"/><path d="M33 32l-4 24M46 32l-1 24M14 44h40"/></svg>`,
+  T:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><path d="M6 54L32 12l26 42z"/><path d="M32 12v8M24 54l8-18 8 18"/><path d="M2 54h60"/><path d="M32 12l-6-6M32 12l6-6"/></svg>`,
+  D:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M8 14c8-6 16 6 24 0s16 6 24 0v36c-8 6-16-6-24 0s-16-6-24 0z"/><path d="M8 28c8-6 16 6 24 0s16 6 24 0" opacity=".5"/><path d="M14 20l6 26M40 18l6 26" opacity=".35"/></svg>`,
+  V:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M22 6h20v6l7 7v35a5 5 0 0 1-5 5H20a5 5 0 0 1-5-5V19l7-7z"/><path d="M15 28h34"/><path d="M32 34c-5 7-7 10-7 13a7 7 0 0 0 14 0c0-3-2-6-7-13z" fill="currentColor"/><path d="M50 30h6v14h-6"/></svg>`,
+  F:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M24 4h14v8l5 5v38a5 5 0 0 1-5 5H24a5 5 0 0 1-5-5V17l5-5z"/><path d="M19 28h24M19 35h24M19 42h24" stroke-dasharray="3 4"/><path d="M53 20c-3.5 5-5 7.5-5 9.5a5 5 0 0 0 10 0c0-2-1.5-4.5-5-9.5z" fill="currentColor"/></svg>`,
+  rocket:`<svg class="rocket-svg" viewBox="0 0 64 100"><g class="flame"><path d="M24 74 Q32 100 40 74Z" fill="#ffd23f"/><path d="M27 74 Q32 92 37 74Z" fill="#fff6c8"/></g><path d="M32 2 C48 18 48 46 44 74 H20 C16 46 16 18 32 2Z" fill="#e8eeff" stroke="#9fb3ff" stroke-width="2"/><circle cx="32" cy="34" r="8" fill="#5ef2ff" stroke="#2a3a7a" stroke-width="3"/><path d="M20 56 L8 76 L20 72Z M44 56 L56 76 L44 72Z" fill="#ff8a3d"/><path d="M26 74h12v4H26z" fill="#555"/></svg>`,
+  storm:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M8 18h34a8 8 0 1 0-8-8"/><path d="M4 30h48a8 8 0 1 1-8 8"/><path d="M10 44h26a6 6 0 1 1-6 6"/><circle cx="50" cy="16" r="1.5" fill="currentColor"/><circle cx="20" cy="56" r="1.5" fill="currentColor"/><circle cx="56" cy="50" r="1.5" fill="currentColor"/></svg>`,
+  sunset:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><g class="a-sink"><circle cx="32" cy="34" r="12"/><path d="M32 12v5M14 22l4 3M50 22l-4 3"/></g><path d="M4 46h56M12 54h40"/></svg>`,
+  pack:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><path d="M18 18a14 14 0 0 1 28 0"/><rect x="12" y="18" width="40" height="40" rx="9"/><rect x="20" y="34" width="24" height="14" rx="3"/><path d="M26 10h12"/><text x="32" y="45" font-size="9" fill="currentColor" stroke="none" text-anchor="middle" font-family="Bahnschrift,sans-serif" font-weight="700">KG</text></svg>`,
+  crowd:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle cx="18" cy="26" r="7"/><circle cx="46" cy="26" r="7"/><circle cx="32" cy="20" r="8"/><path d="M4 56c2-10 8-15 14-15M60 56c-2-10-8-15-14-15M16 58c2-12 8-18 16-18s14 6 16 18"/><path d="M32 2v8M27 5h10" stroke-width="4"/></svg>`,
+  medal:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M20 4l8 18M44 4l-8 18" /><circle cx="32" cy="40" r="18" fill="currentColor" fill-opacity=".15"/><path d="M32 28l3.5 7.2 7.9 1.1-5.7 5.6 1.4 7.8L32 46l-7.1 3.7 1.4-7.8-5.7-5.6 7.9-1.1z" fill="currentColor"/></svg>`,
+  vial:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M14 6h14M38 6h14"/><path d="M17 6v42a4 4 0 0 0 8 0V6M41 6v42a4 4 0 0 0 8 0V6"/><path d="M17 30h8v18a4 4 0 0 1-8 0z" fill="currentColor"/></svg>`,
+  vials0:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M14 6h14M38 6h14"/><path d="M17 6v42a4 4 0 0 0 8 0V6M41 6v42a4 4 0 0 0 8 0V6"/><path d="M8 58l48-50" stroke-width="4"/></svg>`,
+  urn:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M24 6h16v6H24z"/><path d="M22 12h20c8 6 12 14 12 24 0 12-10 22-22 22S10 48 10 36c0-10 4-18 12-24z"/><path d="M18 30h28M18 40h28" opacity=".5"/></svg>`,
+  lock:`<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linejoin="round"><rect x="12" y="28" width="40" height="30" rx="6"/><path d="M20 28v-8a12 12 0 0 1 24 0v8"/><path d="M32 40v8"/></svg>`,
+};
+const GEAR = {
+  nav:   {cat:'Navigatie', icon:'🧭', opts:[
+    {code:'S', name:'Satellietnavigator', desc:'Kan heel nauwkeurig navigeren.', w:1},
+    {code:'K', name:'Sterrenkaart en kompas', desc:'Werkt zonder elektronica.', w:1}]},
+  energy:{cat:'Energie', opts:[
+    {code:'H', name:'Handgenerator', desc:'Klein en betrouwbaar, maar kost veel spierkracht.', w:1},
+    {code:'Z', name:'Zonnepaneel', desc:'Veel energie, maar groot en kwetsbaar.', w:3}]},
+  shelter:{cat:'Onderdak', opts:[
+    {code:'T', name:'Tent', desc:'Comfortabel en beschermend.', w:3},
+    {code:'D', name:'Nooddeken', desc:'Weegt bijna niets, maar biedt weinig bescherming.', w:.5}]},
+  water: {cat:'Water', opts:[
+    {code:'V', name:'Watervoorraad voor 7 dagen', desc:'Veel water, maar zwaar.', w:3.5},
+    {code:'F', name:'Filter + opslag voor 3 dagen water', desc:'Licht, maar je moet wel water vinden.', w:1}]},
+};
+const CATS = ['nav','energy','shelter','water'];
+const NAME = {}; CATS.forEach(c => GEAR[c].opts.forEach(o => NAME[o.code] = o.name));
+const has = c => Object.values(state.gear).includes(c);
+const gearComplete = () => CATS.every(c => state.gear[c]);
+
+/* ============================================================
+   AUDIO (alles gesynthetiseerd, geen bestanden nodig)
+   ============================================================ */
+const AU = { ctx:null };
+function audioInit(){
+  if (AU.ctx) { if (AU.ctx.state === 'suspended') AU.ctx.resume(); return; }
+  const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+  const ctx = AU.ctx = new C();
+  AU.master = ctx.createGain(); AU.master.gain.value = .9; AU.master.connect(ctx.destination);
+  AU.sfx = ctx.createGain(); AU.sfx.gain.value = settings.sound ? settings.sfxVol : 0; AU.sfx.connect(AU.master);
+  AU.mus = ctx.createGain(); AU.mus.gain.value = settings.music ? .22 * settings.musVol : 0; AU.mus.connect(AU.master);
+  AU.amb = ctx.createGain(); AU.amb.gain.value = settings.sound ? settings.ambVol : 0; AU.amb.connect(AU.master);
+  const len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  AU.noise = buf;
+  AU.delay = ctx.createDelay(); AU.delay.delayTime.value = .38;
+  const fb = ctx.createGain(); fb.gain.value = .38; AU.delay.connect(fb); fb.connect(AU.delay); AU.delay.connect(AU.mus);
+  startMusic();
+}
+function tone({f=440, f2=null, type='sine', dur=.2, vol=.3, attack=.005, delay=0, dest}={}){
+  if (!AU.ctx) return; const ctx = AU.ctx, t = ctx.currentTime + delay;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); g.connect(dest || AU.sfx); o.start(t); o.stop(t + dur + .05);
+}
+function noise({dur=.5, vol=.3, type='lowpass', f=1000, f2=null, q=1, delay=0, attack=.01, dest}={}){
+  if (!AU.ctx) return; const ctx = AU.ctx, t = ctx.currentTime + delay;
+  const s = ctx.createBufferSource(); s.buffer = AU.noise; s.loop = true;
+  const fl = ctx.createBiquadFilter(); fl.type = type; fl.Q.value = q; fl.frequency.setValueAtTime(f, t);
+  if (f2) fl.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  s.connect(fl); fl.connect(g); g.connect(dest || AU.sfx); s.start(t, Math.random()); s.stop(t + dur + .05);
+}
+const SFX = {
+  click(){ tone({f:620, f2:1100, type:'triangle', dur:.1, vol:.22}); },
+  hover(){ tone({f:1500, type:'sine', dur:.04, vol:.04}); },
+  whoosh(){ noise({dur:.7, vol:.18, type:'bandpass', f:250, f2:3200, q:.9, attack:.25}); },
+  select(){ tone({f:523, type:'square', dur:.1, vol:.08}); tone({f:784, type:'square', dur:.16, vol:.08, delay:.08}); tone({f:1046, type:'triangle', dur:.3, vol:.15, delay:.16}); },
+  lock(){ tone({f:160, type:'square', dur:.14, vol:.12}); tone({f:120, type:'square', dur:.18, vol:.1, delay:.1}); },
+  boom(){ noise({dur:2.2, vol:1, f:1400, f2:60, attack:.005}); tone({f:120, f2:28, dur:1.6, vol:.9, type:'sine'}); tone({f:60, f2:25, dur:2, vol:.5, type:'triangle', delay:.05}); },
+  alarm(n=5){ for (let i = 0; i < n; i++){ tone({f:880, type:'square', dur:.2, vol:.07, delay:i*.5}); tone({f:620, type:'square', dur:.22, vol:.07, delay:i*.5+.25}); } },
+  rumble(d=2.5){ noise({dur:d, vol:.55, f:140, attack:.4}); },
+  launch(){ noise({dur:3.5, vol:.7, f:150, f2:2400, attack:1.2}); noise({dur:3.5, vol:.5, f:90, attack:.5}); },
+  beep(f=880){ tone({f, type:'sine', dur:.15, vol:.2}); },
+  fanfare(){ const n=[523.25,659.25,783.99,1046.5]; n.forEach((f,i)=>tone({f, type:'triangle', dur:.35, vol:.2, delay:i*.14}));
+    [523.25,659.25,783.99,1046.5].forEach(f=>tone({f, type:'sawtooth', dur:1.6, vol:.05, delay:.6, attack:.05})); tone({f:1568, type:'sine', dur:1.2, vol:.1, delay:.62}); },
+  success(){ [392,523.25,659.25,783.99].forEach((f,i)=>tone({f, type:'triangle', dur:.4, vol:.18, delay:i*.12})); },
+  sad(){ [392,349.23,311.13,261.63].forEach((f,i)=>tone({f, type:'triangle', dur:.6, vol:.16, delay:i*.32})); },
+  fail(){ [220,207.65,196,185].forEach((f,i)=>tone({f, f2:f*.98, type:'sawtooth', dur:.7, vol:.06, delay:i*.45})); },
+  flatline(){ for (let i = 0; i < 4; i++) tone({f:1000, type:'sine', dur:.12, vol:.12, delay:i*.85}); tone({f:1000, type:'sine', dur:3.2, vol:.1, delay:3.4, attack:.02}); },
+  stamp(){ noise({dur:.25, vol:.6, f:800, attack:.002}); tone({f:90, f2:40, dur:.3, vol:.6}); },
+  glitch(){ for (let i = 0; i < 10; i++) tone({f:rand(100,2000), type:'square', dur:.05, vol:.05, delay:i*.06}); },
+  sputter(){ for (let i = 0; i < 6; i++) noise({dur:.18, vol:.4, f:300, delay:i*.28+rand(0,.1), attack:.01}); tone({f:200, f2:40, dur:1.6, vol:.2, type:'sawtooth', delay:1.7}); },
+  sparkle(){ [1318,1568,2093,2637].forEach((f,i)=>tone({f, dur:.25, vol:.06, delay:i*.07})); },
+  crank(){ for (let i = 0; i < 8; i++) tone({f:rand(180,260), type:'square', dur:.04, vol:.05, delay:i*.11}); },
+  zip(){ noise({dur:.4, vol:.2, type:'bandpass', f:2500, f2:5000, q:3}); },
+  type(){ tone({f:rand(1800,2400), type:'square', dur:.015, vol:.012}); },
+};
+/* achtergrondgeluid per sfeer */
+let ambNodes = [];
+function setAmbience(kind){
+  if (!AU.ctx) return;
+  ambNodes.forEach(n => { try{ n.g.gain.setTargetAtTime(0, AU.ctx.currentTime, .6); setTimeout(()=>{ try{n.s.stop()}catch(e){} }, 3000); }catch(e){} });
+  ambNodes = [];
+  clearInterval(AU.chirp);
+  const ctx = AU.ctx;
+  if (kind === 'storm' || kind === 'wind'){
+    const s = ctx.createBufferSource(); s.buffer = AU.noise; s.loop = true;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 500; f.Q.value = .7;
+    const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = .13; lg.gain.value = 350; lfo.connect(lg); lg.connect(f.frequency); lfo.start();
+    const g = ctx.createGain(); g.gain.value = 0; g.gain.setTargetAtTime(kind === 'storm' ? .35 : .06, ctx.currentTime, 1.2);
+    s.connect(f); f.connect(g); g.connect(AU.amb); s.start();
+    ambNodes.push({s, g}, {s:lfo, g});
+  }
+  if (kind === 'night'){
+    AU.chirp = setInterval(() => { if (Math.random() < .6){ const b = rand(2400, 4200); for (let i = 0; i < 3; i++) tone({f:b, f2:b*1.08, dur:.05, vol:.025, delay:i*.07, dest:AU.amb}); } if (Math.random() < .15) tone({f:rand(300,500), f2:rand(150,250), dur:1.2, vol:.03, type:'sine', dest:AU.amb}); }, 900);
+  }
+  if (kind === 'descent'){
+    const s = ctx.createBufferSource(); s.buffer = AU.noise; s.loop = true;
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 220;
+    const g = ctx.createGain(); g.gain.value = 0; g.gain.setTargetAtTime(.25, ctx.currentTime, 1);
+    s.connect(f); f.connect(g); g.connect(AU.amb); s.start(); ambNodes.push({s, g});
+  }
+}
+/* muziek: zwevende synth-pad met sterretjes */
+function startMusic(){
+  const ctx = AU.ctx;
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 4; lp.connect(AU.mus);
+  const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = .05; lg.gain.value = 500; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+  AU.musFilter = lp;
+  const chords = [[110,164.81,220,261.63,329.63],[87.31,130.81,174.61,220,261.63],[98,146.83,196,246.94,293.66],[82.41,123.47,164.81,207.65,246.94]];
+  let ci = 0;
+  const play = () => {
+    const t = ctx.currentTime, ch = chords[ci++ % chords.length];
+    ch.forEach(f => [-6, 6].forEach(det => {
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = det;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.035, t + 3); g.gain.linearRampToValueAtTime(.03, t + 7); g.gain.linearRampToValueAtTime(0, t + 11);
+      o.connect(g); g.connect(lp); o.start(t); o.stop(t + 11.2);
+    }));
+  };
+  play(); AU.musTimer = setInterval(play, 8000);
+  const penta = [659.25, 783.99, 880, 987.77, 1174.66, 1318.5, 1567.98];
+  AU.spark = setInterval(() => { if (Math.random() < .55) tone({f:penta[Math.floor(Math.random()*penta.length)], dur:1.4, vol:.05, attack:.02, dest:AU.delay}); }, 1300);
+}
+function applyAudio(){
+  if (!AU.ctx) return; const t = AU.ctx.currentTime;
+  AU.sfx.gain.setTargetAtTime(settings.sound ? settings.sfxVol : 0, t, .05);
+  AU.amb.gain.setTargetAtTime(settings.sound ? settings.ambVol * (TTS.talking ? .5 : 1) : 0, t, .3);
+  AU.mus.gain.setTargetAtTime(settings.music ? .22 * settings.musVol * (TTS.talking ? .45 : 1) : 0, t, .3);
+}
+function musicMood(m){ if (!AU.ctx) return; const t = AU.ctx.currentTime;
+  const v = {dark:350, normal:900, bright:1800}[m] || 900; AU.musFilter.frequency.setTargetAtTime(v, t, 1.5); }
+
+/* ============================================================
+   TEKST NAAR SPRAAK
+   ============================================================ */
+const TTS = { voice:null, talking:false, gen:0 };
+function voices(){ return ('speechSynthesis' in window) ? speechSynthesis.getVoices().filter(v => /^nl/i.test(v.lang)) : []; }
+function pickVoice(){
+  const nl = voices();
+  TTS.voice = nl.find(v => v.voiceURI === settings.voiceURI) || nl.find(v => v.localService && /nl-NL/i.test(v.lang)) || nl.find(v => /nl-NL/i.test(v.lang)) || nl[0] || null;
+  const sel = $('#sVoice'); sel.innerHTML = '';
+  if (!nl.length){ sel.innerHTML = '<option>Geen Nederlandse stem gevonden</option>'; return; }
+  nl.forEach(v => { const o = document.createElement('option'); o.value = v.voiceURI; o.textContent = v.name.replace(/Microsoft |Online \(Natural\) - /g,'') + (v.localService ? '' : ' (online)'); if (TTS.voice && v.voiceURI === TTS.voice.voiceURI) o.selected = true; sel.append(o); });
+}
+if ('speechSynthesis' in window){ speechSynthesis.onvoiceschanged = pickVoice; }
+function cleanSpeech(t){
+  return t.replace(/<[^>]+>/g,' ')
+    .replace(/(\d+),(\d+)/g, '$1 komma $2')
+    .replace(/km\/dag/g, 'kilometer per dag').replace(/(\d)\s?km\b/g, '$1 kilometer')
+    .replace(/\bH([1-4])\b/g, 'hoofdstuk $1').replace(/\+/g, ' plus ').replace(/[–—]/g, ', ').replace(/→|◀|▸/g,' ')
+    .replace(/\bX\b/g, 'iks').replace(/\bY\b/g, 'ij')
+    .replace(/[\u{1F300}-\u{1FAFF}☀-➿]/gu, '').replace(/\s+/g, ' ').trim();
+}
+/* Voice-over van ElevenLabs (stem: Jim). Elke scène verwijst met 'vo' naar audio/<vo>.mp3.
+   VO_META (gemaakt met een analyse van de opnames) geeft per opname de duur ('end'),
+   het luidste moment ('peak') en de momenten waarop een nieuwe zin begint ('onsets'), in seconden.
+   Daarop lopen de typemachine en de animaties synchroon met de stem. */
+const VO_SCRIPT = /*VO_SCRIPT*/{"titel":["Ruimte-expeditie.","Kunnen jullie de missie volbrengen?"],"h1_landing":["Hoofdstuk één: de landing.","Eindelijk… de planeet is in zicht! De landing gaat perfect… tot de raket de dampkring raakt en hevig begint te trillen… BOEM!","De automatische navigatie is uitgevallen! De raket kan de landingsplaats niet meer vinden. Wat hebben jullie meegenomen?"],"missie":["De missie.","Morgen vertrekken jullie op expeditie, de ruimte in… op zoek naar nieuwe planeten. Maar de ruimte in de raket is beperkt, en er is een gewichtslimiet. Kies dus verstandig! Eerst doen we een simulatie: jullie gaan een onbekende planeet verkennen. Hij lijkt geschikt voor mensen… maar er is nog weinig over bekend."],"taak":["Jullie taak: land op de landingsplaats. Haal bodemmonsters op bij locatie X én locatie Y, elk een dag lopen. En kom veilig terug naar de raket."],"gebied":["Het gebied. Droog. Woestijnachtig. En mogelijk een waterbron, bij locatie Y."],"instructies":["Kies vier voorwerpen, één per categorie. Klik daarna steeds op een van de gele knoppen. Geen gele knop? Klik dan gewoon ergens, of druk op spatie."],"uitrusting":["Pak je uitrusting in. Kies per categorie één voorwerp: navigatie, energie, onderdak en water. Denk goed na. Alles wat je meeneemt, moet je ook dragen."],"laadruim":["Alles zit in het laadruim. Klaar voor de lancering?"],"aftellen":["Drie!","Twee!","Eén!","Lancering!!"],"h1_sat":["Gelukkig: de satellietnavigator! Binnen een paar seconden weet de computer precies waar jullie zijn. Jullie landen veilig, op de juiste plek."],"h1_ster":["Alleen een sterrenkaart… maar door de dikke wolken zie je geen enkele ster. De landing lukt, maar jullie staan vijftien kilometer naast de landingsplaats. Beide locaties zijn nu anderhalve dag lopen. Er is misschien water bij locatie Y… maar niets is zeker. Gaan jullie door? Of breken jullie de missie af?"],"keuze_afbreken":["Gaan jullie verder… of breken jullie de missie af?"],"h2_nacht":["Hoofdstuk twee: de nacht.","Dag één. Jullie stappen uit de raket, precies bij zonsopgang. Vol goede moed gaan jullie op pad. Maar na een paar uur zakt de zon alweer… De nacht duurt hier veel langer dan gedacht. Het is pikdonker. Zonder licht lopen is levensgevaarlijk. Hebben jullie iets om de zaklampen van energie te voorzien?"],"h2_hand_a":["De handgenerator! Zolang iemand blijft draaien, branden er twee zaklampen. De rest loopt in een treintje erachteraan, precies in elkaars voetstappen. Zo halen jullie de volle dertig kilometer, en bereiken jullie locatie X. Alleen… iedereen heeft spierpijn in z'n armen. Het onderzoek wacht tot morgen."],"h2_hand_b":["De handgenerator! Zolang iemand blijft draaien, branden er twee zaklampen. De rest loopt in een treintje erachteraan, precies in elkaars voetstappen. Zo halen jullie de volle dertig kilometer… maar door de verkeerde landing is locatie X nog niet in zicht. Moe, en met spierpijn in jullie armen, kamperen jullie in de woestijn."],"h2_zon":["Het zonnepaneel geeft veel energie… maar alleen als de zon schijnt. Na zonsondergang hebben jullie nog twee uur licht, en dan is het op. Zo komen jullie maar vijfentwintig kilometer per dag. Locatie X halen jullie vandaag niet: jullie overnachten onderweg."],"h3_storm":["Hoofdstuk drie: de storm.","Dag twee. Jullie trekken verder naar de volgende bodemlocatie. Halverwege de dag wordt het ineens donker. Nee hè… alweer nacht? Nee. Een enorme wolk schuift voor de zon. Je voelt korreltjes op je gezicht… Het is een ZANDSTORM! Er is nergens beschutting. Pak je onderdak!"],"h3_tent":["Snel zetten jullie de tent op, en alles gaat naar binnen. De tent zwiept urenlang heen en weer… maar jullie, en al jullie spullen, overleven de storm. De volgende ochtend is het tijd om de balans op te maken. Doorgaan… of teruggaan?"],"h3_deken":["De nooddeken beschermt alleen jullie zelf. Al jullie spullen liggen onbeschut in het zand. De volgende ochtend blijkt: jullie watervoorraad is gehalveerd. Tijd om de balans op te maken. Doorgaan… of teruggaan?"],"h3_deken_zon":["De nooddeken beschermt alleen jullie zelf. Al jullie spullen liggen onbeschut in het zand. De volgende ochtend blijkt: jullie watervoorraad is gehalveerd…","en het zonnepaneel is kapot. Jullie halen nog maar vijftien kilometer per dag. Misschien is er water bij locatie Y, maar niets is zeker. Doorgaan… of teruggaan?"],"keuze_risico":["Kijk goed naar jullie water.","Gaan jullie verder… of terug?"],"muiterij":["Muiterij!","De rest van de groep kan helaas ook tellen. Er is niet genoeg water om de missie af te maken. Ze draaien om, terug naar de landingsplaats, waar zeker water is."],"h4_gewicht":["Hoofdstuk vier: gewicht.","Dag drie. Stap voor stap komen jullie dichter bij je doel… maar elke stap wordt zwaarder. De tent, het zonnepaneel en de watervoorraad zijn zwaar: elk zwaar voorwerp kost per dag nul komma twee dag extra. Halen jullie de landingsplaats nog?"],"rekenen":["Tijd om te rekenen! Zoek jullie uitrusting op… en kijk hoeveel water er overblijft."],"eind_promotie":["PROMOTIE!","Jullie zijn allemaal veilig terug, en de missie is geslaagd. Jullie voorbereiding was uitstekend! Jullie zijn nu allemaal senior expeditieleiders. Extra salaris? Nee hoor… alleen extra werk en verantwoordelijkheid."],"eind_volbracht":["Missie volbracht!","Na een ietwat dorstige terugtocht is iedereen veilig terug, met beide monsters. Voorbereiding: acceptabel. Doorzettingsvermogen: bewonderenswaardig. Jullie beloning? Morgen weer een expeditie. Vertrek: vijf uur 's ochtends. STIPT!"],"eind_een":["Maar één bodemmonster?","Iedereen is veilig terug, maar het tweede monster hebben jullie niet. Eén monster, en nul lichamen om op te halen: een gemiddelde score in dit vak. Morgen gaan jullie weer. Om vijf uur. STIPT!"],"eind_geen":["GÉÉN bodemmonster?","Jullie zijn wel allemaal levend terug… maar met lege handen. Het management is ontevreden. Omdat het jullie eerste keer was, volgen er geen… gebruikelijke consequenties. Morgen mogen jullie weer mee. Niet als expeditieleden… maar als pakezels."],"eind_dood":["Niet iedereen haalt het…","Zonder water hou je het in de woestijn hooguit één dag vol. Niet iedereen heeft de landingsplaats gehaald. Het management is woedend over zoveel verspilde mankracht. De overlevenden gaan naar het privéleger van het management. De families krijgen een urn… met as uit de open haard van de managementkamer."],"eind_afbreken":["Afbreken? Geen optie!","De raket weigert op te starten. Het management heeft door dat jullie het niet eens wíllen proberen. In de benen! Jullie worden betaald om op expeditie te gaan. Slechte voorbereiding is geen excuus."],"watnu":["Wat nu? Jullie hebben één van de zestien combinaties geprobeerd. Probeer het nog eens… of zoek juist de slechtste combinatie!"]}/*END2*/;
+const VO_META = /*VO_META*/{"aftellen":{"d":4.4,"end":3.92,"peak":0.16,"onsets":[0.04,1.04,2.14,2.94],"gaps":[2.02,0.5,0.6,0.4]},"eind_afbreken":{"d":14,"end":13.72,"peak":8.54,"onsets":[0.04,1.16,2.88,5.16,8.38,9.48,11.82],"gaps":[2.02,0.36,1.02,0.84,0.64,0.52,0.38]},"eind_dood":{"d":22.32,"end":21.8,"peak":14.44,"onsets":[0.2,3.76,7.96,10.56,14.22,17.38,19.52,21.26],"gaps":[2.18,2.14,0.8,0.68,0.48,0.56,0.42,0.32]},"eind_een":{"d":14.8,"end":14.4,"peak":0.88,"onsets":[0.1,2.68,4.22,6.6,9.74,11.84,13.08,14.08],"gaps":[2.08,0.96,0.48,0.66,0.36,0.66,0.34,0.34]},"eind_geen":{"d":18.8,"end":18.62,"peak":0.7,"onsets":[0.1,2.54,5,6.84,8.66,11.56,13.86,15.38,17.34],"gaps":[2.08,1,0.54,0.7,0.52,0.32,1,0.4,0.28]},"eind_promotie":{"d":15.52,"end":15.24,"peak":0.36,"onsets":[0.04,1.74,3.74,5.56,7.88,10.94],"gaps":[2.02,0.74,0.26,0.42,0.44,0.72]},"eind_volbracht":{"d":17.84,"end":17.66,"peak":12.94,"onsets":[0.04,2.04,7.64,8.58,9.58,12.7,13.72,15.4,16.04],"gaps":[2.02,0.72,0.44,0.28,0.42,0.44,0.3,0.36,0.38]},"gebied":{"d":7.52,"end":7.28,"peak":5.36,"onsets":[0.08,1.46,2.68,4.26],"gaps":[2.06,0.7,0.66,0.56]},"h1_landing":{"d":19.12,"end":18.74,"peak":11.52,"onsets":[0.16,1.56,3.18,4.22,5.78,7.88,8.38,9.7,11.4,12.82,15.26,17.84],"gaps":[2.14,0.64,1.2,0.6,0.58,0.68,0.28,0.32,0.38,0.82,0.4,0.72]},"h1_sat":{"d":8.8,"end":8.5,"peak":6.44,"onsets":[0.1,1.22,2.98,6.36],"gaps":[2.08,0.3,0.42,0.46]},"h1_ster":{"d":19.36,"end":19.08,"peak":5.32,"onsets":[0.08,2.18,5.24,6.44,9.88,12.84,15.24,16.82,17.92],"gaps":[2.06,0.62,0.68,0.3,0.48,0.48,0.42,0.6,0.4]},"h2_hand_a":{"d":18.24,"end":17.78,"peak":0.08,"onsets":[0.04,1.7,5.04,7.18,9.06,13.48,16.62],"gaps":[2.02,0.56,0.68,0.32,0.64,0.32,0.4]},"h2_hand_b":{"d":19.52,"end":19.1,"peak":0.08,"onsets":[0.04,1.7,4.94,9.12,11.72,15.62,16.22],"gaps":[2.02,0.54,0.5,0.62,0.38,0.64,0.28]},"h2_nacht":{"d":21.92,"end":21.72,"peak":17.82,"onsets":[0.1,1.46,2.98,4.12,7.36,9.56,12.54,15.1,16.58,19.3],"gaps":[2.08,0.46,1,0.56,0.5,0.48,0.46,0.36,0.44,0.5]},"h2_zon":{"d":15.76,"end":15.44,"peak":4.7,"onsets":[0.04,2.48,4.62,7.5,8.76,11.92,14.26],"gaps":[2.02,0.48,0.62,0.28,0.4,0.44,0.38]},"h3_deken":{"d":13.76,"end":13.52,"peak":11.94,"onsets":[0.06,2.96,5.94,7.62,10.02,11.88,12.96],"gaps":[2.04,0.6,0.7,0.42,0.62,0.46,0.52]},"h3_deken_zon":{"d":20.8,"end":20.42,"peak":2.88,"onsets":[0.06,2.88,5.66,7.44,10.26,12.24,14.84,17.2,18.78,19.8],"gaps":[2.04,0.56,0.54,0.48,1.12,0.7,0.54,0.28,0.52,0.5]},"h3_storm":{"d":22.72,"end":22.4,"peak":21.76,"onsets":[0.12,1.62,3.3,4.5,7.6,8.76,10.9,11.9,12.9,13.86,16.64,18.64,20.24,21.74],"gaps":[2.1,0.64,1.18,0.72,1.28,0.34,1.44,0.92,0.6,0.74,1.04,1.14,0.48,0.28]},"h3_tent":{"d":14.72,"end":14.38,"peak":2.34,"onsets":[0.2,3.64,6.14,8.26,9.78,12.96,13.88],"gaps":[2.18,0.44,0.44,0.26,0.62,0.68,0.4]},"h4_gewicht":{"d":20.16,"end":19.96,"peak":12.26,"onsets":[0.12,1.58,3.14,4.3,7.34,9.42,14.3,18.4],"gaps":[2.1,0.48,0.92,0.6,0.54,0.4,0.4,0.5]},"instructies":{"d":10.32,"end":10,"peak":7.74,"onsets":[0.04,1.62,3.14,6.46,7.72],"gaps":[2.02,0.42,0.56,1.06,0.58]},"keuze_afbreken":{"d":3.28,"end":3.14,"peak":1.86,"onsets":[0.06,1.64],"gaps":[2.04,0.56]},"keuze_risico":{"d":4.8,"end":4.62,"peak":0.74,"onsets":[0.1,2.5,4.06],"gaps":[2.08,0.82,0.7]},"laadruim":{"d":2.96,"end":2.78,"peak":2,"onsets":[0.04,1.68],"gaps":[2.02,0.3]},"missie":{"d":23.92,"end":23.56,"peak":0.4,"onsets":[0.04,2.24,4.72,5.94,8.18,10.82,12.86,14.74,16.94,19.76,21.8],"gaps":[2.02,1.42,0.52,0.58,0.8,0.44,0.7,0.9,0.64,0.74,0.44]},"muiterij":{"d":11.2,"end":10.56,"peak":0.58,"onsets":[0.14,2.16,4.6,7.36,8.4,9.8],"gaps":[2.12,1.2,0.54,1.18,0.4,0.4]},"rekenen":{"d":5.28,"end":4.92,"peak":0.4,"onsets":[0.04,1.46],"gaps":[2.02,0.42]},"taak":{"d":9.76,"end":9.42,"peak":0.18,"onsets":[0.04,1.02,2.78,7.78],"gaps":[2.02,0.32,0.42,0.48]},"titel":{"d":4.4,"end":4.02,"peak":0.16,"onsets":[0.1,2.54],"gaps":[2.08,1.14]},"uitrusting":{"d":11.2,"end":10.82,"peak":0.08,"onsets":[0.08,1.6,3.86,5.74,6.4,7.44,8.82],"gaps":[2.06,0.52,0.46,0.4,0.28,0.7,0.52]},"watnu":{"d":8.32,"end":8,"peak":4.76,"onsets":[0.14,1.34,4.34],"gaps":[2.12,0.6,0.44]}}/*END*/;
+const voMissing = new Set();
+const CLK = { gen:0, start:0, audio:null, failed:false };
+function stopSpeak(){ TTS.gen++; if ('speechSynthesis' in window) speechSynthesis.cancel();
+  if (TTS.audio){ TTS.audio.onended = TTS.audio.onerror = null; TTS.audio.pause(); TTS.audio = null; }
+  TTS.talking = false; applyAudio(); }
+/* Speelt de opname 'vo' af. Zonder opname valt hij alleen terug op de browserstem als dat in de instellingen aanstaat. */
+function speak(text, opts={}){
+  stopSpeak();
+  const vo = opts.vo;
+  CLK.gen = TTS.gen; CLK.start = performance.now(); CLK.audio = null; CLK.failed = false; CLK.vo = vo; CLK.textLen = (text || '').length;
+  if (!settings.voice && !opts.force) return;
+  if (vo && !voMissing.has(vo)){
+    const gen = TTS.gen, a = new Audio('audio/' + vo + '.mp3');
+    a.playbackRate = settings.rate; a.preservesPitch = true;
+    a.onplaying = () => { if (gen !== TTS.gen) return; TTS.talking = true; applyAudio(); };
+    a.onended = () => { if (gen !== TTS.gen) return; TTS.talking = false; applyAudio(); };
+    a.onerror = () => { if (gen !== TTS.gen) return; voMissing.add(vo); clockFail(); if (settings.fallback) speakBrowser(text, opts); };
+    TTS.audio = CLK.audio = a;
+    a.play().catch(() => { if (gen === TTS.gen) clockFail(); });
+    return;
+  }
+  if (settings.fallback) speakBrowser(text, opts);
+}
+function clockFail(){ if (CLK.failed) return; CLK.failed = true; CLK.start = performance.now() - (CLK.audio ? CLK.audio.currentTime * 1000 / settings.rate : 0); CLK.audio = null; }
+/* Tijd in de opname (s). Speelt er geen opname, dan loopt de klok gewoon mee met de wandklok. */
+function clockNow(){ const a = CLK.audio; if (a && !a.error) return a.ended ? 1e9 : a.currentTime; return (performance.now() - CLK.start) / 1000 * settings.rate; }
+/* Timing van de opname gebruiken we alleen als die opname ook echt speelt; anders geldt een vlot leestempo. */
+const voMeta = vo => (vo && settings.voice && !voMissing.has(vo)) ? VO_META[vo] : null;
+function voLen(vo){ const m = voMeta(vo); return m ? m.end : Math.max(2.5, (CLK.textLen || 120) / 40); }
+/* Cue-tijdstip: {peak:true}, {onset:n} (n-de zinsbegin) of {frac:x} (zinsbegin het dichtst bij x * duur). */
+function cueTime(vo, c){
+  const m = voMeta(vo), L = voLen(vo);
+  if (c.t != null) return c.t;
+  if (c.peak) return m ? m.peak : L * (c.est ?? .5);
+  const ons = m ? m.onsets : null;
+  if (c.onset != null) return ons && ons[c.onset] != null ? ons[c.onset] : L * (c.est ?? c.onset / 6);
+  if (c.frac != null){ if (!ons || !ons.length) return L * c.frac; const target = c.frac * L; return ons.reduce((b, o) => Math.abs(o - target) < Math.abs(b - target) ? o : b, ons[0]); }
+  return 0;
+}
+/* Voert cues uit op het moment dat de stem daar is. Stopt vanzelf bij een volgende scène. */
+function runCues(vo, cues){
+  if (!cues || !cues.length) return;
+  const gen = CLK.gen, list = cues.map(c => ({...c, at:cueTime(vo, c)})).sort((a, b) => a.at - b.at);
+  const tick = () => { if (gen !== CLK.gen) return; const t = clockNow();
+    while (list.length && list[0].at <= t){ const c = list.shift(); try{ c.fn(); }catch(e){} }
+    if (list.length) requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+}
+function speakBrowser(text, {force=false}={}){
+  if (!('speechSynthesis' in window)) return;
+  const gen = TTS.gen;
+  const parts = cleanSpeech(text).match(/[^.!?…]+[.!?…]*/g) || [];
+  parts.forEach((p, i) => {
+    const u = new SpeechSynthesisUtterance(p.trim()); u.lang = 'nl-NL'; if (TTS.voice) u.voice = TTS.voice;
+    u.rate = settings.rate; u.pitch = 1;
+    u.onstart = () => { if (gen !== TTS.gen) return; TTS.talking = true; applyAudio(); };
+    if (i === parts.length - 1) u.onend = () => { if (gen !== TTS.gen) return; TTS.talking = false; applyAudio(); };
+    speechSynthesis.speak(u);
+  });
+}
+
+/* ============================================================
+   STERRENVELD & DEELTJES
+   ============================================================ */
+const SF = { c:$('#stars'), stars:[], warp:1, target:1 };
+SF.ctx = SF.c.getContext('2d');
+const FX = { c:$('#fx'), p:[], mode:'none' };
+FX.ctx = FX.c.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
+  [SF.c, FX.c].forEach(c => { c.width = W * DPR; c.height = H * DPR; c.getContext('2d').setTransform(DPR, 0, 0, DPR, 0, 0); });
+}
+addEventListener('resize', resize); resize();
+for (let i = 0; i < 700; i++) SF.stars.push({x:rand(-1,1), y:rand(-1,1), z:rand(.02,1), h:rand(190,40+360)%360});
+function warp(v, ms=1500){ SF.target = v; clearTimeout(SF.t); SF.t = setTimeout(() => SF.target = 1, ms); }
+function setFx(mode){ FX.mode = mode; if (mode !== 'confetti') FX.p = FX.p.filter(p => p.kind === 'confetti'); }
+function confetti(n=180){
+  const cols = ['#ffd23f','#5ef2ff','#ff8a3d','#3dffa2','#a78bfa','#ff3b5c','#ffffff'];
+  for (let i = 0; i < n; i++) FX.p.push({kind:'confetti', x:W/2 + rand(-W*.3, W*.3), y:rand(-H*.3, -10), vx:rand(-2,2), vy:rand(1,4), r:rand(0,6.28), vr:rand(-.2,.2), w:rand(6,12), h:rand(8,16), c:cols[i % cols.length], life:1});
+}
+function burst(x, y, n=40, col='#ffb36b'){
+  for (let i = 0; i < n; i++){ const a = rand(0, 6.28), s = rand(1, 6); FX.p.push({kind:'spark', x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:1, c:col}); }
+}
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(50, now - last) / 16.67; last = now;
+  // sterren
+  const s = SF.ctx; SF.warp += (SF.target - SF.warp) * .05;
+  s.fillStyle = 'rgba(4,5,13,' + (SF.warp > 3 ? .35 : 1) + ')'; s.fillRect(0, 0, W, H);
+  const cx = W/2, cy = H/2, sp = .0012 * SF.warp * dt, R = Math.max(W, H) * .6;
+  for (const st of SF.stars){
+    const pz = st.z; st.z -= sp;
+    if (st.z <= .02){ st.x = rand(-1,1); st.y = rand(-1,1); st.z = 1; continue; }
+    const x = cx + st.x / st.z * R * .5, y = cy + st.y / st.z * R * .5;
+    if (x < -50 || x > W + 50 || y < -50 || y > H + 50){ st.x = rand(-1,1); st.y = rand(-1,1); st.z = 1; continue; }
+    const px = cx + st.x / pz * R * .5, py = cy + st.y / pz * R * .5;
+    const b = 1 - st.z, size = b * 2.2 + .2;
+    s.strokeStyle = `hsla(${st.h},90%,${75 + b*25}%,${Math.min(1, b*1.4)})`; s.lineWidth = size;
+    s.beginPath(); s.moveTo(px, py); s.lineTo(x + (SF.warp < 1.5 ? .1 : 0), y); s.stroke();
+  }
+  // deeltjes
+  const f = FX.ctx; f.clearRect(0, 0, W, H);
+  if (FX.mode === 'sand'){ for (let i = 0; i < 14 * dt; i++) FX.p.push({kind:'sand', x:W + 20, y:rand(0, H), vx:-rand(14, 30), vy:rand(-1.5, 2.5), life:1, l:rand(10, 40), a:rand(.15,.6)}); }
+  if (FX.mode === 'dust' && Math.random() < .3 * dt) FX.p.push({kind:'dust', x:rand(0, W), y:H + 10, vx:rand(-.3,.3), vy:-rand(.2,.7), life:1, r:rand(1,3)});
+  if (FX.mode === 'motes' && Math.random() < .25 * dt) FX.p.push({kind:'mote', x:rand(0, W), y:rand(H*.4, H), vx:rand(-.4,.4), vy:-rand(.1,.4), life:1, r:rand(1.5,3.5), ph:rand(0,6)});
+  if (FX.mode === 'embers' && Math.random() < .4 * dt) FX.p.push({kind:'dust', x:rand(0, W), y:H + 10, vx:rand(-.5,.5), vy:-rand(.6,1.6), life:1, r:rand(1,2.5), c:'255,90,60'});
+  FX.p = FX.p.filter(p => p.life > 0 && p.y < H + 60 && p.x > -80);
+  for (const p of FX.p){
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    if (p.kind === 'sand'){ f.strokeStyle = `rgba(230,170,100,${p.a})`; f.lineWidth = 1.6; f.beginPath(); f.moveTo(p.x, p.y); f.lineTo(p.x + p.l, p.y - p.vy); f.stroke(); }
+    else if (p.kind === 'dust'){ p.life -= .003 * dt; f.fillStyle = `rgba(${p.c || '255,220,180'},${p.life * .5})`; f.beginPath(); f.arc(p.x, p.y, p.r, 0, 6.28); f.fill(); }
+    else if (p.kind === 'mote'){ p.life -= .002 * dt; p.ph += .05 * dt; const a = p.life * (.5 + .5 * Math.sin(p.ph)); f.fillStyle = `rgba(140,255,220,${a})`; f.shadowColor = '#7fffd4'; f.shadowBlur = 10; f.beginPath(); f.arc(p.x, p.y, p.r, 0, 6.28); f.fill(); f.shadowBlur = 0; }
+    else if (p.kind === 'spark'){ p.vx *= .96; p.vy = p.vy * .96 + .08; p.life -= .02 * dt; f.fillStyle = p.c; f.globalAlpha = Math.max(0, p.life); f.beginPath(); f.arc(p.x, p.y, 2.5, 0, 6.28); f.fill(); f.globalAlpha = 1; }
+    else if (p.kind === 'confetti'){ p.vy = Math.min(p.vy + .05 * dt, 5); p.vx += Math.sin(p.y / 40) * .05; p.r += p.vr * dt; if (p.y > H) p.life = 0;
+      f.save(); f.translate(p.x, p.y); f.rotate(p.r); f.fillStyle = p.c; f.fillRect(-p.w/2, -p.h/2, p.w, p.h * Math.abs(Math.cos(p.r * 2))); f.restore(); }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* zaklamp volgt de muis */
+addEventListener('pointermove', e => { const t = $('#torch'); t.style.setProperty('--mx', e.clientX + 'px'); t.style.setProperty('--my', e.clientY + 'px'); });
+
+function shake(long=false){ const a = $('#app'); a.classList.remove('shake','shake-long'); void a.offsetWidth; a.classList.add(long ? 'shake-long' : 'shake'); setTimeout(()=>a.classList.remove('shake','shake-long'), long ? 2100 : 600); }
+function flash(kind){ const f = $('#flash'); f.className = ''; void f.offsetWidth; if (kind) f.className = kind; }
+
+const THEMES = {
+  space:{fx:'none', amb:null, mood:'normal'}, descent:{fx:'none', amb:'descent', mood:'dark'},
+  day:{fx:'dust', amb:'wind', mood:'normal'}, hot:{fx:'dust', amb:'wind', mood:'bright'},
+  dusk:{fx:'dust', amb:'wind', mood:'normal'}, night:{fx:'motes', amb:'night', mood:'dark'},
+  storm:{fx:'sand', amb:'storm', mood:'dark'}, dead:{fx:'embers', amb:'wind', mood:'dark'}, win:{fx:'none', amb:null, mood:'bright'}
+};
+function setTheme(t){
+  if (!t) return;
+  const changed = state.theme !== t;
+  state.theme = t; document.body.dataset.theme = t;
+  const th = THEMES[t] || THEMES.space;
+  setFx(th.fx);
+  if (changed) setAmbience(th.amb);
+  musicMood(th.mood);
+}
+
+/* ============================================================
+   HET VERHAAL (volgt exact de PowerPoint)
+   ============================================================ */
+const E = (a, b, t, o={}) => Object.assign({a, b, t}, o);
+const STD_A = [E('L','X','30 km|1 dag'), E('X','Y','30 km|1 dag'), E('Y','L','30 km|1 dag')];
+const G = (...c) => c; // lijstje uitrustingcodes
+const gearRows = list => list; // leesbaarheid
+
+const GEWICHT = {
+  type:'story', theme:'hot', vo:'h4_gewicht', chap:'Hoofdstuk 4', title:'Gewicht', day:3, art:'pack', artClass:'a-heavy', warm:true,
+  text:['Dag 3: Jullie hebben je keuze gemaakt en gaan op weg. Stap voor stap komen jullie dichter bij je doel. Maar elke stap wordt zwaarder door de vermoeide benen. En elk grammetje extra gewicht in je rugzak maakt het nog zwaarder.',
+        'Het gewicht van de zware voorwerpen (tent, zonnepaneel en watervoorraad) begint jullie voortgang te belemmeren als je ze hebt meegenomen. Elk van deze voorwerpen voegt per dag 0,2 dag toe aan je looptijd.'],
+  q:'Gaan jullie de landingsplaats nog wel halen?'
+};
+const STORM_TXT = dest => ['Dag 2: De volgende dag gaan jullie weer op weg, naar de ' + dest + ' bodemlocatie. Halverwege de dag begint het ineens donker te worden. Nee hè, denken jullie, is het nu alweer nacht?',
+  'Maar dan zien jullie dat het een enorme wolk is die voor de zon kruipt. Even later voelen jullie allemaal korreltjes op je gezicht. Het is geen wolk, het is een zandstorm!',
+  'Helaas is er niks om achter te schuilen, dus jullie pakken je onderdak erbij.'];
+const STORM = (dest, toT, toD) => ({type:'story', theme:'day', vo:'h3_storm', chap:'Hoofdstuk 3', title:'De storm', day:2, art:'storm', artClass:'a-spin', warm:true,
+  text:STORM_TXT(dest), q:'Wat hebben jullie als onderdak?',
+  cues:[{frac:.42, est:.4, fn:() => { setTheme('storm'); setFx('dust'); SFX.rumble(2); }},
+        {peak:true, est:.75, fn:() => { setFx('sand'); shake(true); SFX.rumble(3.5); flash('white'); }}],
+  choices:[{label:'Tent', icon:'T', to:toT, m:()=>has('T')}, {label:'Nooddeken', icon:'D', to:toD, m:()=>has('D')}]});
+const TENT_TXT = extra => ['Jullie zetten snel de tent op en brengen alles naar binnen. De tent zwiept en zwaait urenlang heen en weer, maar jullie en jullie uitrusting overleven de storm. Als jullie de volgende ochtend wakker worden, is de storm voorbij en kunnen jullie verder lopen.',
+  'Voordat jullie gaan lopen, inventariseren jullie je spullen en de uitdaging die jullie nog te wachten staat.' + (extra ? ' Volgens de missie-informatie is er een goede kans dat er bij de tweede bodemlocatie water te vinden is, maar niets is zeker.' : '')];
+const TENT = (title, next, extra) => ({type:'story', theme:'storm', vo:'h3_tent', cues:[{frac:.45, est:.45, fn:() => { setTheme('day'); SFX.success(); }}], chap:'Hoofdstuk 3', title, day:2, art:'T', artClass:'a-wobble', text:TENT_TXT(extra), q:'Is het verstandig om door te gaan, of kunnen jullie beter teruggaan?', next});
+const DEKEN = (title, next) => ({type:'story', theme:'storm', vo:'h3_deken', cues:[{frac:.3, est:.3, fn:() => setTheme('day')}, {frac:.55, est:.55, fn:() => { SFX.sad(); shake(); }}], chap:'Hoofdstuk 3', title, day:2, art:'D', artClass:'a-flutter', warm:true,
+  text:['De nooddeken is alleen groot genoeg om jullie zelf te beschermen. De grote onderdelen van jullie uitrusting liggen onbeschermd en raken beschadigd.',
+        'De volgende ochtend, als de storm voorbij is, komen jullie erachter dat jullie overgebleven watervoorraad is gehalveerd.',
+        'Voordat jullie gaan lopen, inventariseren jullie je spullen en de uitdaging die jullie nog te wachten staat.'],
+  q:'Is het verstandig om door te gaan, of kunnen jullie beter teruggaan?', next, set(){ state.flags.waterHalf = true; }});
+const DEKEN_ZON = (title, next) => ({type:'story', theme:'storm', vo:'h3_deken_zon', cues:[{frac:.25, est:.25, fn:() => setTheme('day')}, {frac:.55, est:.55, fn:() => { SFX.glitch(); flash('white'); shake(); }}], chap:'Hoofdstuk 3', title, day:2, art:'Z', artClass:'a-glitch', bad:true,
+  text:['De nooddeken is alleen groot genoeg om jullie zelf te beschermen. De grote onderdelen van jullie uitrusting liggen onbeschermd en raken beschadigd. De volgende ochtend, als de storm voorbij is, komen jullie erachter dat:',
+        {list:['jullie overgebleven watervoorraad is gehalveerd;','het zonnepaneel onherstelbaar beschadigd is. Jullie kunnen nog maar 15 km per dag lopen.']},
+        'Voordat jullie gaan lopen, inventariseren jullie je spullen en de uitdaging die jullie nog te wachten staat. Volgens de missie-informatie is er een goede kans dat er bij de tweede bodemlocatie water te vinden is, maar niets is zeker.'],
+  q:'Is het verstandig om door te gaan, of kunnen jullie beter teruggaan?', next, set(){ state.flags.waterHalf = true; state.flags.zonBroken = true; }});
+const MUITERIJ = next => ({type:'story', theme:'hot', vo:'muiterij', chap:'Hoofdstuk 3', title:'Muiterij!', day:2, art:'crowd', artClass:'a-shake', bad:true,
+  text:['De rest van de expeditieleden kan helaas ook tellen. Zij zijn ook tot de conclusie gekomen dat er in het beste geval niet genoeg water is om de missie te voltooien, laat staan als er nog iets onverwachts gebeurt.',
+        'Ze besluiten om terug te gaan naar de landingsplaats, waar zeker weten water is.'], next, enter(){ SFX.alarm(2); shake(); }});
+const VERDER_TERUG = (v, t) => [{label:'Verder', icon:'→', to:v, sub:'door naar locatie Y'}, {label:'Terug', icon:'←', to:t, sub:'naar de landingsplaats'}];
+
+const N = {
+  1:{type:'title'},
+  2:{type:'brief', theme:'space', vo:'missie', title:'De missie',
+     text:['Morgen vertrekken jullie op expeditie de ruimte in om alle planeten te ontdekken. De omstandigheden op elke planeet verschillen natuurlijk enorm van elkaar, daarom moeten jullie goed voorbereid zijn op elke mogelijke situatie.',
+           'Helaas hebben jullie maar beperkte ruimte in de raket voor spullen, en ook nog eens een gewichtslimiet! Daarom zullen jullie verstandige keuzes moeten maken.',
+           'Om jullie een beetje voor te bereiden, gaan we eerst een simulatie doen. Jullie stellen zelf je paklijst samen en gaan daarna een onbekende planeet verkennen. De planeet lijkt geschikt voor menselijke bewoning, maar er is nog weinig over bekend.'], next:3},
+  3:{type:'map', theme:'space', vo:'taak', tag:'Briefing', title:'Jullie taak', say:'Jullie taak: land op de geselecteerde landingsplaats. Neem bodemmonsters op plek X en Y. Keer daarna veilig terug naar het ruimteschip en stijg weer op.',
+     map:{layout:'A', title:'Start', edges:STD_A, demo:true},
+     boxes:[{h:'Het is jullie taak om:', html:`<ul class="bulls"><li>te <b>landen</b> op de geselecteerde landingsplaats;</li><li><b>bodemmonsters</b> te nemen op plek <b style="color:#6fb6ff">X</b> en <b style="color:#5be38f">Y</b>. Die liggen allebei ongeveer een dag lopen (30 km) van de landingsplaats én van elkaar;</li><li><b>veilig terug</b> te keren naar het ruimteschip en weer op te stijgen.</li></ul>`}], next:4},
+  4:{type:'area', theme:'space', next:5},
+  5:{type:'brief', theme:'space', vo:'instructies', title:'Instructies', head:'SIMULATIEPROTOCOL',
+     text:['Kies van tevoren je uitrusting: vier voorwerpen, één per categorie. De boordcomputer onthoudt wat jullie inpakken.',
+           'Klik altijd op een van de gele knoppen.',
+           'Is er geen gele knop? Dan mag je overal klikken, of druk op de spatiebalk.'], next:'gear'},
+  gear:{type:'gear', theme:'space'},
+  10:{type:'overview', theme:'space'},
+
+  /* ---------- Hoofdstuk 1 ---------- */
+  11:{type:'story', theme:'descent', vo:'h1_landing', chap:'Hoofdstuk 1', title:'De landing', day:0, art:'rocket', artClass:'a-shake',
+      text:['Na vele dagen in de raket is het moment eindelijk daar: de planeet is in zicht! Iedereen maakt zich klaar voor de landing.',
+            'De landing verloopt in het begin perfect, maar zodra jullie de dampkring binnengaan, begint de raket ineens hevig te trillen…',
+            {boom:'BOEM'},
+            'Een waarschuwingslampje gaat branden: de automatische navigatie is uitgevallen. De raket kan de landingsplaats zelf niet vinden!'],
+      q:'Wat hebben jullie meegenomen?', enter(){ warp(4, 2500); SFX.rumble(4); shake(true); },
+      choices:[{label:'Satellietnavigator', icon:'S', to:12, m:()=>has('S')}, {label:'Sterrenkaart en kompas', icon:'K', to:44, m:()=>has('K')}]},
+  12:{type:'story', theme:'day', vo:'h1_sat', chap:'Hoofdstuk 1', title:'Satellietnavigator', day:0, art:'S', artClass:'a-pulse',
+      text:['Gelukkig hebben jullie een back-up: de satellietnavigator! Niks aan het handje. De computer bepaalt binnen enkele seconden jullie positie en de landing wordt gecorrigeerd.','Jullie landen veilig op de juiste plek.'],
+      q:'Wat betekent dit voor jullie missie?', enter(){ flash(''); SFX.success(); }, next:13},
+  13:{type:'map', theme:'day', title:'H1 · Landing', say:'Precies op de landingsplaats. Alle afstanden zijn 30 kilometer, één dag lopen.', map:{layout:'A', title:'H1 · Landing', edges:STD_A, land:true},
+      gear:['S'], next:14},
+  44:{type:'story', theme:'day', vo:'h1_ster', chap:'Hoofdstuk 1', title:'Sterrenkaart en kompas', day:0, art:'K', artClass:'a-wobble', warm:true,
+      text:['Jullie hebben alleen de sterrenkaart. Door de dichte wolkenlaag kunnen jullie de sterren niet zien. Jullie hebben geen idee waar jullie zijn.',
+            'De landing lukt, maar jullie komen 15 kilometer van de geplande landingsplaats terecht. De twee locaties voor de monsters liggen nu allebei 1,5 dag lopen van jullie vandaan. Als jullie alleen het waterfilter met de 3-daagse watervoorraad bij je hebben, wordt het extra belangrijk dat jullie onderweg water vinden!',
+            'Volgens de missie-informatie is er een goede kans dat er bij de tweede bodemlocatie water te vinden is, maar niets is zeker.'],
+      q:'Is het verantwoord om door te gaan, of breken jullie de missie af en gaan jullie meteen terug met de raket?', enter(){ flash(''); }, next:45},
+  45:{type:'map', theme:'day', vo:'keuze_afbreken', title:'H1 · Landing', say:'Jullie zijn verkeerd geland. Beide locaties liggen nu 45 kilometer weg. Gaan jullie verder, of breken jullie de missie af?',
+      map:{layout:'B', title:'H1 · Landing', edges:[E('L','X','45 km|1,5 dag'), E('X','Y','30 km|1 dag'), E('Y','L','45 km|1,5 dag')], land:true}, gear:['K'],
+      choices:[{label:'Verder', icon:'→', to:46, sub:'op naar locatie X'}, {label:'Missie afbreken', icon:'✖', to:81, sub:'terug naar huis'}]},
+
+  /* ---------- Hoofdstuk 2: route satellietnavigator ---------- */
+  14:{type:'story', theme:'dusk', chap:'Hoofdstuk 2', title:'De nacht', day:1, art:'sunset',
+      text:['Dag 1: Jullie stappen uit de raket en zien net de zonsopgang. Wat een goede timing! Als jullie goed doorlopen, kunnen jullie de eerste locatie voor het bodemmonster nog bereiken voordat de avond valt. Vol goede moed gaan jullie op pad.',
+            'Maar wat is dat? Na een paar uur begint de zon alweer te zakken naar de horizon. De nacht blijkt op deze planeet veel langer te duren dan gedacht. Jullie zijn nog niet eens in de buurt van de eerste locatie en het is al volledig donker.',
+            'Zonder licht lopen op een onbekende planeet is levensgevaarlijk, dus jullie zullen je zaklampen moeten gebruiken.'],
+      q:'Hebben jullie iets meegenomen dat ze van energie kan voorzien?', vo:'h2_nacht', cues:[{frac:.45, est:.45, fn:() => setTheme('night')}],
+      choices:[{label:'Handgenerator', icon:'H', to:15, m:()=>has('H')}, {label:'Zonnepaneel', icon:'Z', to:28, m:()=>has('Z')}]},
+  15:{type:'story', theme:'night', vo:'h2_hand_a', chap:'Hoofdstuk 2', title:'Handgenerator', day:1, art:'H', artClass:'a-shake',
+      text:['De handgenerator levert beperkt energie, maar zolang iemand blijft draaien, is er genoeg energie voor twee zaklampen. De mensen met de zaklampen gaan voorop en de rest loopt er in een treintje achteraan.',
+            'Iedereen moet precies in de voetstappen van zijn voorganger blijven lopen. Erg vervelend, maar jullie kunnen wel de volle 30 km van die dag afleggen.',
+            'Aan het einde van dag 1 zijn jullie bij de eerste locatie voor bodemonderzoek aangekomen. Helaas heeft bij aankomst iedereen spierpijn in de armen van het draaien aan de generator, dus wordt het onderzoek uitgesteld tot morgen.'],
+      enter(){ SFX.crank(); }, next:16},
+  16:{type:'map', theme:'night', title:'H2 · Nacht', say:'Snelheid: 30 km/dag. Jullie hebben locatie X bereikt.', map:{layout:'A', title:'H2 · Nacht', edges:STD_A, trail:['L','X'], red:{at:'X', t:'30 km|1 dag', dx:-120, dy:-70}},
+      speed:'30', gear:['S','H'], next:17},
+  17:STORM('tweede', 18, 21),
+  18:TENT('Tent', 19),
+  19:{type:'map', theme:'day', title:'H3 · Storm · inventarisatie', say:'Inventarisatie na de storm. Snelheid: 30 km/dag.', speed:'30', gear:['S','H'],
+      map:{layout:'A', title:'H3 · Storm · inventarisatie', edges:[...STD_A, E('S','Y','20 km|0,66 dag',{thin:true, off:-34, side:-1})], storm:{on:'XY', t:.32}, trail:['L','X','S'], done:['X'], red:{at:'S', t:'40 km|2 dagen', dx:-115, dy:0}},
+      boxes:[{h:'Voorraad', rows:[{l:'Tent: volledige watervoorraad', tone:'good'}]}], set(){ state.samples.X = true; }, next:20},
+  20:{type:'map', theme:'day', vo:'keuze_risico', title:'H3 · Storm · risico', say:'Kijk naar jullie water. Gaan jullie verder, of terug?', speed:'30', gear:['S','H'],
+      map:{layout:'A', title:'H3 · Storm · risico', edges:[...STD_A, E('S','Y','20 km|0,66 dag',{thin:true, off:-34, side:-1}), E('S','L','30 km|1 dag',{thin:true})], storm:{on:'XY', t:.32}, trail:['L','X','S'], done:['X'], red:{at:'S', t:'40 km|2 dagen', dx:-115, dy:20}},
+      boxes:[{h:'Watervoorraad (tent)', rows:[{l:'+ watervoorraad', v:'5 dagen', tone:'good', m:()=>has('V')}, {l:'+ filter', v:'1 dag', tone:'warn', m:()=>has('F')}]}],
+      choices:VERDER_TERUG(26, 24)},
+  21:DEKEN('Nooddeken', 22),
+  22:{type:'map', theme:'day', title:'H3 · Storm · inventarisatie', say:'Inventarisatie na de storm. Jullie water is gehalveerd.', speed:'30', gear:['S','H'],
+      map:{layout:'A', title:'H3 · Storm · inventarisatie', edges:[...STD_A, E('S','Y','20 km|0,66 dag',{thin:true, off:-34, side:-1})], storm:{on:'XY', t:.32}, trail:['L','X','S'], done:['X'], red:{at:'S', t:'40 km|2 dagen', dx:-115, dy:0}},
+      boxes:[{h:'Voorraad', rows:[{l:'Nooddeken: water gehalveerd', tone:'bad'}]}], set(){ state.samples.X = true; }, next:23},
+  23:{type:'map', theme:'day', vo:'keuze_risico', title:'H3 · Storm · risico', say:'Kijk naar jullie water. Gaan jullie verder, of terug?', speed:'30', gear:['S','H'],
+      map:{layout:'A', title:'H3 · Storm · risico', edges:[...STD_A, E('S','Y','20 km|0,66 dag',{thin:true, off:-34, side:-1}), E('S','L','30 km|1 dag',{thin:true})], storm:{on:'XY', t:.32}, trail:['L','X','S'], done:['X'], red:{at:'S', t:'40 km|2 dagen', dx:-115, dy:20}},
+      boxes:[{h:'Watervoorraad (nooddeken)', rows:[{l:'+ watervoorraad', v:'2,5 dag', tone:'warn', m:()=>has('V')}, {l:'+ filter', v:'0,5 dag', tone:'bad', m:()=>has('F')}]}],
+      choices:VERDER_TERUG(26, 24)},
+  24:Object.assign({}, GEWICHT, {next:25}),
+  25:{type:'data', theme:'hot', title:'H4 · Gewicht', speed:'30', gear:['S','H'], heavy:{H:'licht'}, locs:{X:true, Y:false},
+      days:[{g:'Tent (zwaar, +0,2 dag)', rows:[{l:'+ watervoorraad (zwaar, +0,2 dag)', v:'1,4 dagen', m:()=>has('T')&&has('V')}, {l:'+ filter (licht)', v:'1,2 dagen', m:()=>has('T')&&has('F')}]},
+            {g:'Nooddeken (licht)', rows:[{l:'+ watervoorraad (zwaar, +0,2 dag)', v:'1,2 dagen', m:()=>has('D')&&has('V')}, {l:'+ filter (licht)', v:'1 dag', m:()=>has('D')&&has('F')}]}],
+      water:[{g:'Tent', rows:[{l:'watervoorraad', v:'3,6 dagen', n:3.6, m:()=>has('T')&&has('V')}, {l:'filter', v:'−0,2 dag', n:-.2, m:()=>has('T')&&has('F')}]},
+             {g:'Nooddeken', rows:[{l:'watervoorraad', v:'0,3 dag', n:.3, m:()=>has('D')&&has('V')}, {l:'filter', v:'−0,5 dag', n:-.5, m:()=>has('D')&&has('F')}]}],
+      next:78},
+  26:Object.assign({}, GEWICHT, {next:27}),
+  27:{type:'data', theme:'hot', title:'H4 · Gewicht', speed:'30', gear:['S','H'], heavy:{H:'licht'}, locs:{X:true, Y:true, Ywater:true},
+      days:[{g:'Tent (zwaar, +0,2 dag)', rows:[{l:'+ watervoorraad (zwaar, +0,2 dag)', v:'2,3 dagen', m:()=>has('T')&&has('V')}, {l:'+ filter (licht)', v:'2 dagen', m:()=>has('T')&&has('F')}]},
+            {g:'Nooddeken (licht)', rows:[{l:'+ watervoorraad (zwaar, +0,2 dag)', v:'2 dagen', m:()=>has('D')&&has('V')}, {l:'+ filter (licht)', v:'1,66 dag', m:()=>has('D')&&has('F')}]}],
+      water:[{g:'Tent', rows:[{l:'watervoorraad', v:'2,7 dagen', n:2.7, m:()=>has('T')&&has('V')}, {l:'filter', v:'0,2 dag', n:.2, note:'bijgevuld bij locatie Y', m:()=>has('T')&&has('F')}]},
+             {g:'Nooddeken', rows:[{l:'watervoorraad', v:'−0,5 dag', n:-.5, m:()=>has('D')&&has('V')}, {l:'filter', v:'−0,16 dag', n:-.16, note:'bijgevuld bij locatie Y', m:()=>has('D')&&has('F')}]}],
+      choices:[{label:'Tent + watervoorraad', to:76, m:()=>has('T')&&has('V')}, {label:'De rest', to:77, m:()=>!(has('T')&&has('V'))}]},
+
+  /* zonnepaneel na satelliet */
+  28:{type:'story', theme:'night', vo:'h2_zon', chap:'Hoofdstuk 2', title:'Zonnepaneel', day:1, art:'Z', artClass:'a-pulse',
+      text:['Het zonnepaneel kan veel energie leveren, maar alleen als er genoeg daglicht is. Jullie hebben elke dag genoeg energie voor jullie zaklampen om nog 2 uur na zonsondergang door te lopen, maar daarna moeten jullie stoppen.',
+            'Onder goede omstandigheden kunnen jullie elke dag 25 km afleggen. Jullie halen vandaag de eerste locatie voor bodemonderzoek niet en overnachten onderweg.'],
+      q:'Wat betekent dit voor jullie missie?', next:29},
+  29:{type:'map', theme:'night', title:'H2 · Nacht', say:'Snelheid: 25 km/dag. Jullie overnachten onderweg.', speed:'25', gear:['S','Z'],
+      map:{layout:'A', title:'H2 · Nacht', edges:[E('L','X','30 km|1,2 dag'), E('X','Y','30 km|1,2 dag'), E('Y','L','30 km|1,2 dag')], marker:{on:'LX', t:.8}, trail:['L','M'], red:{at:'M', t:'25 km|1 dag', dx:70, dy:-60}}, next:30},
+  30:STORM('eerste', 31, 38),
+  31:TENT('Tent', 32),
+  32:{type:'map', theme:'day', title:'H3 · Storm · inventarisatie', say:'Inventarisatie na de storm. Snelheid: 25 km/dag.', speed:'25', gear:['S','Z','T'],
+      map:{layout:'A', title:'H3 · Storm · inventarisatie', edges:[E('L','X','30 km|1,2 dag'), E('X','Y','30 km|1,2 dag'), E('Y','L','30 km|1,2 dag'), E('S','Y','27 km|1,08 dag',{thin:true, off:-34, side:-1})], storm:{on:'XY', t:.14}, trail:['L','X','S'], done:['X'], red:{at:'S', t:'33 km|2 dagen', dx:-115, dy:-10}},
+      boxes:[{h:'Voorraad', rows:[{l:'Volledige watervoorraad', tone:'good'}]}], set(){ state.samples.X = true; }, next:33},
+  33:{type:'map', theme:'day', vo:'keuze_risico', title:'H3 · Storm · risico', say:'Kijk naar jullie water. Gaan jullie verder, of terug?', speed:'25', gear:['S','Z','T'],
+      map:{layout:'A', title:'H3 · Storm · risico', edges:[E('L','X','30 km|1,2 dag'), E('X','Y','30 km|1,2 dag'), E('Y','L','30 km|1,2 dag'), E('S','Y','27 km|1,08 dag',{thin:true, off:-34, side:-1}), E('S','L','30 km|1,2 dag',{thin:true})], storm:{on:'XY', t:.14}, trail:['L','X','S'], done:['X'], red:{at:'S', t:'33 km|2 dagen', dx:-115, dy:30}},
+      boxes:[{h:'Watervoorraad', rows:[{l:'+ watervoorraad', v:'5 dagen', tone:'good', m:()=>has('V')}, {l:'+ filter', v:'1 dag', tone:'warn', m:()=>has('F')}]}],
+      choices:VERDER_TERUG(36, 34)},
+  34:Object.assign({}, GEWICHT, {next:35}),
+  35:{type:'data', theme:'hot', title:'H4 · Gewicht', speed:'25', gear:['S','Z','T'], heavy:{Z:'zwaar', T:'zwaar'}, locs:{X:true, Y:false},
+      days:[{g:'Terug naar de landingsplaats', rows:[{l:'+ filter (licht)', v:'1,7 dag', m:()=>has('F')}, {l:'+ watervoorraad (zwaar)', v:'genoeg water', m:()=>has('V')}]}],
+      water:[{g:'Water over', rows:[{l:'filter', v:'−0,7 dag', n:-.7, m:()=>has('F')}, {l:'watervoorraad', v:'ruim voldoende', n:2.5, m:()=>has('V')}]}],
+      next:()=>has('V') ? 78 : 80},
+  36:Object.assign({}, GEWICHT, {next:37}),
+  37:{type:'data', theme:'hot', title:'H4 · Gewicht', speed:'25', gear:['S','Z','T'], heavy:{Z:'zwaar', T:'zwaar'}, locs:{X:true, Y:true, Ywater:true},
+      days:[{g:'Dagen tot terugkeer', rows:[{l:'+ watervoorraad (zwaar, +0,6 dag)', v:'3,6 dagen', m:()=>has('V')}, {l:'+ filter (licht, +0,4 dag)', v:'3,2 dagen', m:()=>has('F')}]}],
+      water:[{g:'Water over', rows:[{l:'watervoorraad', v:'1,4 dag', n:1.4, m:()=>has('V')}, {l:'filter', v:'−0,5 dag', n:-.5, note:'bijgevuld bij locatie Y', m:()=>has('F')}]}],
+      choices:[{label:'Watervoorraad', icon:'V', to:76, m:()=>has('V')}, {label:'Filter', icon:'F', to:77, m:()=>has('F')}]},
+  38:DEKEN_ZON('Nooddeken', 39),
+  39:{type:'map', theme:'day', title:'H3 · Storm · inventarisatie', say:'Het zonnepaneel is kapot. Snelheid: nog maar 15 km/dag.', speed:'15', gear:['S','Z','D'], crossed:['Z'],
+      map:{layout:'A', title:'H3 · Storm · inventarisatie', edges:[E('L','X','30 km|1,2 dag'), E('X','Y','30 km|2 dagen'), E('Y','L','30 km|2 dagen'), E('S','Y','27 km|1,8 dag',{thin:true, off:-34, side:-1})], storm:{on:'XY', t:.14}, trail:['L','X','S'], done:['X'], red:{at:'S', t:'33 km|2 dagen', dx:-115, dy:-10}},
+      boxes:[{h:'Voorraad', rows:[{l:'Water gehalveerd', tone:'bad'}]}], set(){ state.samples.X = true; }, next:40},
+  40:{type:'map', theme:'day', vo:'keuze_risico', title:'H3 · Storm · risico', say:'Kijk naar jullie water. Gaan jullie verder, of terug?', speed:'15', gear:['S','Z','D'], crossed:['Z'],
+      map:{layout:'A', title:'H3 · Storm · risico', edges:[E('L','X','30 km|1,2 dag'), E('X','Y','30 km|2 dagen'), E('Y','L','30 km|2 dagen'), E('S','Y','27 km|1,8 dag',{thin:true, off:-34, side:-1}), E('S','L','30 km|2 dagen',{thin:true})], storm:{on:'XY', t:.14}, trail:['L','X','S'], done:['X'], red:{at:'S', t:'33 km|2 dagen', dx:-115, dy:30}},
+      boxes:[{h:'Watervoorraad', rows:[{l:'+ watervoorraad', v:'2,5 dag', tone:'warn', m:()=>has('V')}, {l:'+ filter', v:'0,5 dag', tone:'x', m:()=>has('F')}]}],
+      choices:VERDER_TERUG(41, 42)},
+  41:MUITERIJ(42),
+  42:Object.assign({}, GEWICHT, {next:43}),
+  43:{type:'data', theme:'hot', title:'H4 · Gewicht', speed:'15', gear:['S','Z','D'], crossed:['Z'], heavy:{D:'licht'}, locs:{X:true, Y:false},
+      days:[{g:'Dagen tot terugkeer', rows:[{l:'+ watervoorraad (zwaar, +0,2 dag)', v:'2,4 dagen', m:()=>has('V')}, {l:'+ filter (licht)', v:'2 dagen', m:()=>has('F')}]}],
+      water:[{g:'Water over', rows:[{l:'watervoorraad', v:'0,1 dag', n:.1, m:()=>has('V')}, {l:'filter', v:'−1,5 dag', n:-1.5, m:()=>has('F')}]}],
+      choices:[{label:'Watervoorraad', icon:'V', to:78, m:()=>has('V')}, {label:'Filter', icon:'F', to:80, m:()=>has('F')}]},
+
+  /* ---------- route sterrenkaart ---------- */
+  46:{type:'story', theme:'dusk', chap:'Hoofdstuk 2', title:'De nacht', day:1, art:'sunset',
+      text:['Dag 1: Jullie stappen uit de raket en zien net de zonsopgang. Wat een goede timing! Als jullie goed doorlopen, kunnen jullie morgenmiddag de eerste locatie voor het bodemmonster bereiken. Vol goede moed gaan jullie op pad.',
+            'Maar wat is dat? Na een paar uur begint de zon alweer te zakken naar de horizon. De nacht blijkt op deze planeet veel langer te duren dan gedacht. Jullie zijn nog niet eens in de buurt van de eerste locatie en het is al volledig donker.',
+            'Zonder licht lopen op een onbekende planeet is levensgevaarlijk, dus jullie zullen je zaklampen moeten gebruiken.'],
+      q:'Hebben jullie iets meegenomen dat ze van energie kan voorzien?', vo:'h2_nacht', cues:[{frac:.45, est:.45, fn:() => setTheme('night')}],
+      choices:[{label:'Handgenerator', icon:'H', to:47, m:()=>has('H')}, {label:'Zonnepaneel', icon:'Z', to:60, m:()=>has('Z')}]},
+  47:{type:'story', theme:'night', vo:'h2_hand_b', chap:'Hoofdstuk 2', title:'Handgenerator', day:1, art:'H', artClass:'a-shake',
+      text:['De handgenerator levert beperkt energie, maar zolang iemand blijft draaien, is er genoeg energie voor twee zaklampen. De mensen met de zaklampen gaan voorop en de rest loopt er in een treintje achteraan.',
+            'Iedereen moet precies in de voetstappen van zijn voorganger blijven lopen. Erg vervelend, maar jullie kunnen wel de volle 30 km van die dag afleggen.',
+            'Door jullie verplaatste landing is het helaas niet gelukt om de eerste locatie te bereiken. Moe en met veel spierpijn in jullie armen kamperen jullie in de woestijn.'],
+      enter(){ SFX.crank(); }, next:48},
+  48:{type:'map', theme:'night', title:'H2 · Nacht', say:'Snelheid: 30 km/dag. Locatie X is nog niet bereikt.', speed:'30', gear:['K','H'],
+      map:{layout:'B', title:'H2 · Nacht', edges:[E('L','X','45 km|1,5 dag'), E('X','Y','30 km|1 dag'), E('Y','L','45 km|1,5 dag')], marker:{on:'LX', t:.67}, trail:['L','M'], red:{at:'M', t:'30 km|1 dag', dx:10, dy:-70}}, next:49},
+  49:STORM('eerste', 50, 53),
+  50:TENT('Tent', 51),
+  51:{type:'map', theme:'day', title:'H3 · Storm · inventarisatie', say:'Inventarisatie na de storm. Snelheid: 30 km/dag.', speed:'30', gear:['K','H'],
+      map:{layout:'B', title:'H3 · Storm · inventarisatie', edges:[E('L','X','45 km|1,5 dag'), E('X','Y','30 km|1 dag'), E('Y','L','45 km|1,5 dag'), E('S','X','5 km|0,16 dag',{thin:true, off:26})], storm:{on:'LX', t:.88}, trail:['L','S'], red:{at:'S', t:'40 km|2 dagen', dx:-10, dy:-80}},
+      boxes:[{h:'Voorraad', rows:[{l:'Tent: volledige watervoorraad', tone:'good'}]}], next:52},
+  52:{type:'map', theme:'day', vo:'keuze_risico', title:'H3 · Storm · risico', say:'Kijk naar jullie water. Gaan jullie verder, of terug?', speed:'30', gear:['K','H'],
+      map:{layout:'B', title:'H3 · Storm · risico', edges:[E('L','X','45 km|1,5 dag'), E('X','Y','30 km|1 dag'), E('Y','L','45 km|1,5 dag'), E('S','X','5 km|0,16 dag',{thin:true, off:26}), E('S','L','40 km|1,33 dag',{thin:true, off:26})], storm:{on:'LX', t:.88}, trail:['L','S'], red:{at:'S', t:'40 km|2 dagen', dx:-10, dy:-80}},
+      boxes:[{h:'Watervoorraad (tent)', rows:[{l:'+ watervoorraad', v:'5 dagen', tone:'good', m:()=>has('V')}, {l:'+ filter', v:'1 dag', tone:'warn', m:()=>has('F')}]}],
+      choices:VERDER_TERUG(58, 56)},
+  53:DEKEN('Nooddeken', 54),
+  54:{type:'map', theme:'day', title:'H3 · Storm · inventarisatie', say:'Inventarisatie na de storm. Jullie water is gehalveerd.', speed:'30', gear:['K','H'],
+      map:{layout:'B', title:'H3 · Storm · inventarisatie', edges:[E('L','X','45 km|1,5 dag'), E('X','Y','30 km|1 dag'), E('Y','L','45 km|1,5 dag'), E('S','X','5 km|0,16 dag',{thin:true, off:26})], storm:{on:'LX', t:.88}, trail:['L','S'], red:{at:'S', t:'40 km|2 dagen', dx:-10, dy:-80}},
+      boxes:[{h:'Voorraad', rows:[{l:'Nooddeken: water gehalveerd', tone:'bad'}]}], next:55},
+  55:{type:'map', theme:'day', vo:'keuze_risico', title:'H3 · Storm · risico', say:'Kijk naar jullie water. Gaan jullie verder, of terug?', speed:'30', gear:['K','H'],
+      map:{layout:'B', title:'H3 · Storm · risico', edges:[E('L','X','45 km|1,5 dag'), E('X','Y','30 km|1 dag'), E('Y','L','45 km|1,5 dag'), E('S','X','5 km|0,16 dag',{thin:true, off:26}), E('S','L','40 km|1,33 dag',{thin:true, off:26})], storm:{on:'LX', t:.88}, trail:['L','S'], red:{at:'S', t:'40 km|2 dagen', dx:-10, dy:-80}},
+      boxes:[{h:'Watervoorraad (nooddeken)', rows:[{l:'+ watervoorraad', v:'2,5 dag', tone:'warn', m:()=>has('V')}, {l:'+ filter', v:'0,5 dag', tone:'bad', m:()=>has('F')}]}],
+      choices:VERDER_TERUG(58, 56)},
+  56:Object.assign({}, GEWICHT, {next:57}),
+  57:{type:'data', theme:'hot', title:'H4 · Gewicht', speed:'30', gear:['K','H'], heavy:{H:'licht'}, locs:{X:false, Y:false},
+      days:[{g:'Tent (zwaar, +0,2 dag)', rows:[{l:'+ watervoorraad (zwaar, +0,2 dag)', v:'1,9 dagen', m:()=>has('T')&&has('V')}, {l:'+ filter (licht)', v:'1,6 dagen', m:()=>has('T')&&has('F')}]},
+            {g:'Nooddeken (licht)', rows:[{l:'+ watervoorraad (zwaar, +0,2 dag)', v:'1,6 dagen', m:()=>has('D')&&has('V')}, {l:'+ filter (licht)', v:'1,3 dagen', m:()=>has('D')&&has('F')}]}],
+      water:[{g:'Tent', rows:[{l:'watervoorraad', v:'3,1 dagen', n:3.1, m:()=>has('T')&&has('V')}, {l:'filter', v:'−0,6 dag', n:-.6, m:()=>has('T')&&has('F')}]},
+             {g:'Nooddeken', rows:[{l:'watervoorraad', v:'0,9 dag', n:.9, m:()=>has('D')&&has('V')}, {l:'filter', v:'−0,8 dag', n:-.8, m:()=>has('D')&&has('F')}]}],
+      choices:[{label:'De rest', to:79, m:()=>!(has('D')&&has('F'))}, {label:'Nooddeken + filter', to:80, m:()=>has('D')&&has('F')}]},
+  58:Object.assign({}, GEWICHT, {next:59}),
+  59:{type:'data', theme:'hot', title:'H4 · Gewicht', speed:'30', gear:['K','H'], heavy:{H:'licht'}, locs:{X:true, Y:true, Ywater:true},
+      days:[{g:'Tent (zwaar, +0,2 dag)', rows:[{l:'+ watervoorraad (zwaar, +0,2 dag)', v:'3,7 dagen', m:()=>has('T')&&has('V')}, {l:'+ filter (licht)', v:'3,2 dagen', m:()=>has('T')&&has('F')}]},
+            {g:'Nooddeken (licht)', rows:[{l:'+ watervoorraad (zwaar, +0,2 dag)', v:'3,2 dagen', m:()=>has('D')&&has('V')}, {l:'+ filter (licht)', v:'2,7 dagen', m:()=>has('D')&&has('F')}]}],
+      water:[{g:'Tent', rows:[{l:'watervoorraad', v:'1,3 dag', n:1.3, m:()=>has('T')&&has('V')}, {l:'filter', v:'−0,4 dag', n:-.4, note:'bijgevuld bij locatie Y', m:()=>has('T')&&has('F')}]},
+             {g:'Nooddeken', rows:[{l:'watervoorraad', v:'−0,7 dag', n:-.7, m:()=>has('D')&&has('V')}, {l:'filter', v:'−0,7 dag', n:-.7, note:'bijgevuld bij locatie Y', m:()=>has('D')&&has('F')}]}],
+      choices:[{label:'Tent + watervoorraad', to:76, m:()=>has('T')&&has('V')}, {label:'Tent + filter', to:77, m:()=>has('T')&&has('F')}, {label:'Nooddeken', icon:'D', to:80, m:()=>has('D')}]},
+
+  60:{type:'story', theme:'night', vo:'h2_zon', chap:'Hoofdstuk 2', title:'Zonnepaneel', day:1, art:'Z', artClass:'a-pulse',
+      text:['Het zonnepaneel kan veel energie leveren, maar alleen als er genoeg daglicht is. Jullie hebben elke dag genoeg energie voor jullie zaklampen om nog 2 uur na zonsondergang door te lopen, maar daarna moeten jullie stoppen.',
+            'Onder goede omstandigheden kunnen jullie elke dag 25 km afleggen. Jullie halen vandaag de eerste locatie voor bodemonderzoek niet en overnachten onderweg.'], next:61},
+  61:{type:'map', theme:'night', title:'H2 · Nacht', say:'Snelheid: 25 km/dag. Jullie overnachten onderweg.', speed:'25', gear:['K','Z'],
+      map:{layout:'B', title:'H2 · Nacht', edges:[E('L','X','45 km|1,8 dag'), E('X','Y','30 km|1,2 dag'), E('Y','L','45 km|1,8 dag')], marker:{on:'LX', t:.55}, trail:['L','M'], red:{at:'M', t:'25 km|1 dag', dx:10, dy:-70}}, next:62},
+  62:STORM('eerste', 63, 70),
+  63:TENT('Tent', 64, true),
+  64:{type:'map', theme:'day', title:'H3 · Storm · inventarisatie', say:'Inventarisatie na de storm. Snelheid: 25 km/dag.', speed:'25', gear:['K','Z','T'],
+      map:{layout:'B', title:'H3 · Storm · inventarisatie', edges:[E('L','X','45 km|1,8 dag'), E('X','Y','30 km|1,2 dag'), E('Y','L','45 km|1,8 dag'), E('S','X','12 km|0,5 dag',{thin:true, off:26})], storm:{on:'LX', t:.72}, trail:['L','S'], red:{at:'S', t:'33 km|2 dagen', dx:-10, dy:-80}},
+      boxes:[{h:'Voorraad', rows:[{l:'Volledige watervoorraad', tone:'good'}]}], next:65},
+  65:{type:'map', theme:'day', vo:'keuze_risico', title:'H3 · Storm · risico', say:'Kijk naar jullie water. Gaan jullie verder, of terug?', speed:'25', gear:['K','Z','T'],
+      map:{layout:'B', title:'H3 · Storm · risico', edges:[E('L','X','45 km|1,8 dag'), E('X','Y','30 km|1,2 dag'), E('Y','L','45 km|1,8 dag'), E('S','X','12 km|0,5 dag',{thin:true, off:26}), E('S','L','33 km|1,3 dag',{thin:true, off:26})], storm:{on:'LX', t:.72}, trail:['L','S'], red:{at:'S', t:'33 km|2 dagen', dx:-10, dy:-80}},
+      boxes:[{h:'Watervoorraad', rows:[{l:'+ watervoorraad', v:'5 dagen', tone:'good', m:()=>has('V')}, {l:'+ filter', v:'1 dag', tone:'warn', m:()=>has('F')}]}],
+      choices:VERDER_TERUG(68, 66)},
+  66:Object.assign({}, GEWICHT, {next:67}),
+  67:{type:'data', theme:'hot', title:'H4 · Gewicht', speed:'25', gear:['K','Z','T'], heavy:{Z:'zwaar', T:'zwaar'}, locs:{X:false, Y:false},
+      days:[{g:'Dagen tot terugkeer', rows:[{l:'+ filter (licht, +0,4 dag)', v:'1,8 dagen', m:()=>has('F')}, {l:'+ watervoorraad (zwaar, +0,6 dag)', v:'2,1 dagen', m:()=>has('V')}]}],
+      water:[{g:'Water over', rows:[{l:'filter', v:'−0,8 dag', n:-.8, m:()=>has('F')}, {l:'watervoorraad', v:'2,9 dagen', n:2.9, m:()=>has('V')}]}],
+      choices:[{label:'Filter', icon:'F', to:80, m:()=>has('F')}, {label:'Watervoorraad', icon:'V', to:79, m:()=>has('V')}]},
+  68:Object.assign({}, GEWICHT, {next:69}),
+  69:{type:'data', theme:'hot', title:'H4 · Gewicht', speed:'25', gear:['K','Z','T'], heavy:{Z:'zwaar', T:'zwaar'}, locs:{X:true, Y:true, Ywater:true},
+      days:[{g:'Dagen tot terugkeer', rows:[{l:'+ watervoorraad (zwaar, +0,6 dag)', v:'5,6 dagen', m:()=>has('V')}, {l:'+ filter (licht, +0,4 dag)', v:'4,9 dagen', m:()=>has('F')}]}],
+      water:[{g:'Water over', rows:[{l:'watervoorraad', v:'−0,6 dag', n:-.6, m:()=>has('V')}, {l:'filter', v:'−1,4 dag', n:-1.4, note:'bijgevuld bij locatie Y', m:()=>has('F')}]}],
+      next:80},
+  70:DEKEN_ZON('Nooddeken', 71),
+  71:{type:'map', theme:'day', title:'H3 · Storm · inventarisatie', say:'Het zonnepaneel is kapot. Snelheid: nog maar 15 km/dag.', speed:'15', gear:['K','Z','D'], crossed:['Z'],
+      map:{layout:'B', title:'H3 · Storm · inventarisatie', edges:[E('L','X','45 km|1,8 dag'), E('X','Y','30 km|2 dagen'), E('Y','L','45 km|3 dagen'), E('S','X','12 km|0,8 dag',{thin:true, off:26})], storm:{on:'LX', t:.72}, trail:['L','S'], red:{at:'S', t:'33 km|2 dagen', dx:-10, dy:-80}},
+      boxes:[{h:'Voorraad', rows:[{l:'Water gehalveerd', tone:'bad'}]}], next:72},
+  72:{type:'map', theme:'day', vo:'keuze_risico', title:'H3 · Storm · risico', say:'Kijk naar jullie water. Gaan jullie verder, of terug?', speed:'15', gear:['K','Z','D'], crossed:['Z'],
+      map:{layout:'B', title:'H3 · Storm · risico', edges:[E('L','X','45 km|1,8 dag'), E('X','Y','30 km|2 dagen'), E('Y','L','45 km|3 dagen'), E('S','X','12 km|0,8 dag',{thin:true, off:26}), E('S','L','33 km|2,2 dag',{thin:true, off:26})], storm:{on:'LX', t:.72}, trail:['L','S'], red:{at:'S', t:'33 km|2 dagen', dx:-10, dy:-80}},
+      boxes:[{h:'Watervoorraad', rows:[{l:'+ watervoorraad', v:'2,5 dag', tone:'warn', m:()=>has('V')}, {l:'+ filter', v:'0,5 dag', tone:'bad', m:()=>has('F')}]}],
+      choices:VERDER_TERUG(73, 74)},
+  73:MUITERIJ(74),
+  74:Object.assign({}, GEWICHT, {next:75}),
+  75:{type:'data', theme:'hot', title:'H4 · Gewicht', speed:'15', gear:['K','Z','D'], crossed:['Z'], heavy:{D:'licht'}, locs:{X:false, Y:false},
+      days:[{g:'Dagen tot terugkeer', rows:[{l:'+ watervoorraad (zwaar, +0,2 dag)', v:'2,6 dagen', m:()=>has('V')}, {l:'+ filter (licht)', v:'2,2 dagen', m:()=>has('F')}]}],
+      water:[{g:'Water over', rows:[{l:'watervoorraad', v:'−0,1 dag', n:-.1, m:()=>has('V')}, {l:'filter', v:'−1,8 dag', n:-1.8, m:()=>has('F')}]}],
+      choices:[{label:'Watervoorraad', icon:'V', to:79, m:()=>has('V')}, {label:'Filter', icon:'F', to:80, m:()=>has('F')}]},
+
+  /* ---------- eindes ---------- */
+  76:{type:'end', vo:'eind_promotie', kind:'promo', theme:'win', title:'PROMOTIE!', stamp:'Senior expeditieleider', art:'medal',
+      text:['Gefeliciteerd! Jullie hebben allemaal levend de landingsplaats bereikt en de missie voltooid. Geen enkele keer zijn jullie in gevaar gekomen: jullie voorbereiding was uitstekend.',
+            'Als erkenning voor deze prestatie heeft het management jullie allemaal promotie gegeven. Jullie zijn nu allemaal senior expeditieleiders!',
+            'In tegenstelling tot wat je zou verwachten, hoort bij deze promotie geen extra salaris. Alleen extra werk en verantwoordelijkheid.'], next:82},
+  77:{type:'end', vo:'eind_volbracht', kind:'success', theme:'win', title:'MISSIE VOLBRACHT', stamp:'2/2 monsters', art:'rocket',
+      text:['Gefeliciteerd! Na een al dan niet enigszins dorstige terugtocht hebben jullie allemaal levend de landingsplaats bereikt en de missie voltooid. Aan het einde van de dag is dat alles waar het management om geeft.',
+            'Jullie voorbereiding was acceptabel en jullie doorzettingsvermogen bewonderenswaardig.',
+            'Als erkenning voor deze prestatie heeft het management jullie allemaal aangemeld voor een volgende expeditie. Jullie vertrekken morgen om 5.00 uur stipt!'], next:82},
+  78:{type:'end', vo:'eind_een', kind:'one', theme:'dusk', title:'Maar één bodemmonster?', stamp:'1/2 monsters', art:'vial',
+      text:['Jullie hebben allemaal levend de landingsplaats bereikt, al dan niet na een dorstige terugtocht. Helaas hebben jullie het tweede bodemmonster niet gehaald.',
+            'Jullie hadden je beter kunnen voorbereiden, maar het management is desondanks niet ontevreden. Eén bodemmonster en nul lichamen om te repatriëren is een gemiddelde score in dit werkveld.',
+            'Als erkenning voor deze prestatie heeft het management jullie allemaal aangemeld voor een volgende expeditie. Jullie vertrekken morgen om 5.00 uur stipt!'], next:82},
+  79:{type:'end', vo:'eind_geen', kind:'none', theme:'dusk', title:'Géén bodemmonster?', stamp:'PAKEZEL', art:'vials0',
+      text:['Jullie hebben allemaal levend de landingsplaats bereikt, al dan niet na een dorstige terugtocht. Helaas hebben jullie geen enkel bodemmonster gehaald.',
+            'Het management is erg ontevreden. Maar omdat het jullie eerste expeditie was, hebben ze besloten om niet over te gaan tot de gebruikelijke consequenties…',
+            'Jullie vertrekken morgen om 5.00 uur stipt op jullie volgende expeditie, zodat jullie kunnen laten zien dat jullie het wél kunnen. Helaas gaan jullie dit keer niet mee als volwaardige expeditieleden, maar als pakezels.'], next:82},
+  80:{type:'end', vo:'eind_dood', kind:'dead', theme:'dead', title:'Niet iedereen haalt het…', stamp:'Missie mislukt', art:'urn',
+      text:['De gemiddelde persoon kan lopend door de woestijn 1 dag zonder water overleven. Helaas hebben alle ondergemiddelde personen, en misschien een paar bovengemiddelde personen, de landingsplaats niet gehaald.',
+            'Het management is erg boos: wat een verspilling van mankracht. Wel zijn ze onder de indruk van jullie doorzettingsvermogen. De overlevenden worden overgeplaatst naar het privéleger van het management.',
+            'De rest wordt achtergelaten op de planeet, vanwege de hoge kosten van het terugbrengen van lichamen. De families krijgen een urn gevuld met nep-as (uit de open haard in de managementkamer).'], next:82},
+  81:{type:'end', vo:'eind_afbreken', kind:'abort', theme:'descent', title:'Afbreken? Geen optie!', stamp:'Toegang geweigerd', art:'lock',
+      text:['Jullie hebben geprobeerd de missie af te breken en terug te gaan naar de aarde. Helaas wil de raket niet opstarten!',
+            'Wat blijkt? Het management heeft door dat jullie de missie al willen afblazen zonder het ook maar te proberen. Dat vinden ze een verspilling van tijd, materieel en mankracht.',
+            'In de benen! Jullie worden betaald om op expeditie te gaan, dus je gaat. Slechte voorbereiding en onvoorziene omstandigheden zijn geen excuus.'],
+      choices:[{label:'In de benen!', icon:'→', to:45, sub:'terug naar de missie'}]},
+  82:{type:'final', theme:'space'},
+};
+const ENDINFO = {76:{e:'🏅', n:'Promotie'}, 77:{e:'🚀', n:'Missie volbracht'}, 78:{e:'🧪', n:'Eén monster'}, 79:{e:'📦', n:'Pakezel'}, 80:{e:'💀', n:'Niet iedereen…'}};
+const RANK = {76:5, 77:4, 78:3, 79:2, 80:1};
+
+/* ============================================================
+   NAVIGATIE
+   ============================================================ */
+const stage = $('#stage');
+let typer = null, busy = false;
+function go(id, {push=true, label=null}={}){
+  if (busy) return;
+  const n = N[id]; if (!n) return;
+  busy = true;
+  stopSpeak(); if (typer) typer.cancel(); typer = null;
+  flash('');
+  if (push && state.current != null) state.history.push(state.current);
+  if (label) state.route.push(label);
+  const old = stage.firstElementChild;
+  if (old){ old.classList.add('leave'); SFX.whoosh(); }
+  setTimeout(() => {
+    busy = false;
+    state.current = id;
+    if (n.day != null) state.day = n.day;
+    if (n.set) n.set();
+    setTheme(n.theme || state.theme);
+    document.body.classList.toggle('notitle', n.type !== 'title');
+    stage.innerHTML = '';
+    const el = RENDER[n.type](n, id);
+    el.classList.add('scene');
+    stage.append(el);
+    stage.scrollTop = 0;
+    updateHUD();
+    if (n.enter) n.enter();
+  }, old ? 360 : 0);
+}
+function nextOf(n){ return typeof n.next === 'function' ? n.next() : n.next; }
+function advance(){
+  if (typer && !typer.done){ typer.finish(); return; }
+  const n = N[state.current]; if (!n) return;
+  if (n.choices || n.type === 'title' || n.type === 'gear' || n.type === 'overview' || n.type === 'final') return;
+  const nx = nextOf(n); if (nx != null){ SFX.click(); go(nx); }
+}
+function back(){
+  if (busy || !state.history.length) return;
+  const prev = state.history.pop();
+  if (state.route.length && N[state.current] && N[prev] && N[prev].choices) state.route.pop();
+  SFX.click(); go(prev, {push:false});
+}
+
+/* ============================================================
+   TYPEMACHINE
+   ============================================================ */
+/* Ondertiteling: bij een scène met opname tonen we precies wat de stem zegt (VO_SCRIPT).
+   De eerste alinea valt weg als die alleen de titel noemt; slotvragen worden de gele vraag. */
+function voItems(vo, title, withQ){
+  if (!voMeta(vo) || !VO_SCRIPT[vo]) return null;
+  const norm = t => t.toLowerCase().replace(/[^a-zà-ÿ ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const items = [];
+  VO_SCRIPT[vo].forEach((p, i) => {
+    if (i === 0 && title && p.length < title.length + 25 && norm(p).includes(norm(title))) { items.push({text:p + ' ', hidden:true}); return; }
+    const bm = p.match(/^(.*?)(BOEM!)(.*)$/);
+    const para = i > 0;
+    if (bm){ if (bm[1].trim()) items.push({text:bm[1].trim(), para}); items.push({boom:'BOEM', text:'BOEM!', para:para && !bm[1].trim()}); if (bm[3].trim()) items.push({text:bm[3].trim()}); return; }
+    items.push({text:p, para});
+  });
+  const last = items[items.length - 1];
+  if (withQ && last && !last.boom && !last.hidden && /\?$/.test(last.text)){
+    const sents = last.text.match(/[^.!?]+[.!?]+/g) || [last.text];
+    let k = sents.length; while (k > 0 && /\?$/.test(sents[k - 1].trim())) k--;
+    const rest = sents.slice(0, k).join('').trim(), q = sents.slice(k).join('').trim();
+    items.pop(); if (rest) items.push({text:rest, para:last.para}); items.push({text:q, q:true, para:!rest && last.para});
+  }
+  return items;
+}
+/* Tijdlijn teken -> seconde: verankerd aan de zinsbegins (onsets) en het luidste moment (peak) van de opname. */
+function voTimeline(vo, nodes){
+  const total = nodes.reduce((t, nd) => t + nd.text.length, 0), m = voMeta(vo);
+  if (!m) { const L = Math.max(2, total / 40); return {total, at:sec => total * sec / L}; }
+  // kandidaten: begin van elke zin en elk tekstblok
+  let full = '', starts = [0];
+  nodes.forEach(nd => { if (full.length) starts.push(full.length); full += nd.text; });
+  full.replace(/[.!?…:]+\s+/g, (mt, i) => { starts.push(i + mt.length); return mt; });
+  starts = [...new Set(starts)].filter(c => c > 0 && c < total).sort((x, y) => x - y);
+  const t0 = m.onsets[0] || 0, t1 = m.end, est = c => t0 + (t1 - t0) * c / total;
+  let anchors = [[0, t0]];
+  const bi = nodes.findIndex(nd => nd.boom);
+  const boomChar = bi < 0 ? -1 : nodes.slice(0, bi).reduce((t, nd) => t + nd.text.length, 0);
+  // zinsbegins en stem-onsets op volgorde aan elkaar koppelen (kleinste totale afwijking; een onset overslaan kost P)
+  const O = m.onsets.slice(1), C = starts, K = O.length, M = C.length, P = 1.2, maxD = Math.max(2, (t1 - t0) * .18);
+  const dp = [...Array(K + 1)].map(() => Array(M + 1).fill(Infinity)), bk = [...Array(K + 1)].map(() => Array(M + 1).fill(''));
+  for (let j = 0; j <= M; j++) dp[0][j] = 0;
+  for (let i = 1; i <= K; i++) for (let j = 0; j <= M; j++){
+    if (dp[i - 1][j] + P < dp[i][j]){ dp[i][j] = dp[i - 1][j] + P; bk[i][j] = 'o'; }
+    if (j > 0 && dp[i][j - 1] < dp[i][j]){ dp[i][j] = dp[i][j - 1]; bk[i][j] = 'c'; }
+    if (j > 0){ const d = Math.abs(est(C[j - 1]) - O[i - 1]); if (d < maxD && dp[i - 1][j - 1] + d < dp[i][j]){ dp[i][j] = dp[i - 1][j - 1] + d; bk[i][j] = 'm'; } }
+  }
+  for (let i = K, j = M; i > 0 && j >= 0;){
+    const w = bk[i][j]; if (w === 'm'){ anchors.push([C[j - 1], O[i - 1]]); i--; j--; } else if (w === 'c') j--; else i--;
+  }
+  const fixed = [];
+  if (m.gaps){
+    let pos = 0; const paraChars = []; nodes.forEach(nd => { if (nd.para && pos > 0) paraChars.push(pos); pos += nd.text.length; });
+    // per alinea (op volgorde): de onset met de langste stilte ervoor, met een straf voor afstand tot de geschatte plek
+    let prev = t0;
+    paraChars.forEach(c => {
+      let best = null;
+      m.onsets.forEach((o, i) => { if (i === 0 || o <= prev) return; const sc = (m.gaps[i] || 0) - .12 * Math.abs(est(c) - o); if (!best || sc > best.sc) best = {o, sc}; });
+      if (best){ fixed.push([c, best.o]); prev = best.o; }
+    });
+  }
+  // slotvraag: begint op de onset waarbij de resterende spreektijd het best past bij de lengte van de vraag
+  const qi = nodes.findIndex(nd => nd.q);
+  if (qi > 0){
+    const qc = nodes.slice(0, qi).reduce((t, nd) => t + nd.text.length, 0), want = (t1 - t0) * (total - qc) / total;
+    const cand = m.onsets.slice(-4).filter(o => o > t0 + 1);
+    if (cand.length){ const o = cand.reduce((b, x) => Math.abs((t1 - x) - want) < Math.abs((t1 - b) - want) ? x : b); if (Math.abs((t1 - o) - want) < want) fixed.push([qc, o]); }
+  }
+  if (boomChar >= 0){ fixed.push([boomChar, m.peak]);
+    const after = m.onsets.find(o => o > m.peak + .3), nxt = boomChar + nodes[bi].text.length;
+    if (after != null && nxt < total) fixed.push([nxt, after]); }
+  fixed.sort((x, y) => x[0] - y[0]);
+  // ankers uit de volgorde-koppeling alleen houden als ze tussen de vaste ankers passen
+  const fits = ([c, t]) => { const lo = [[0, t0], ...fixed].filter(a => a[0] < c).pop(), hi = [...fixed, [total, t1]].find(a => a[0] > c);
+    return (!lo || t > lo[1]) && (!hi || t < hi[1]) && !fixed.some(a => Math.abs(a[0] - c) < 4); };
+  anchors = [anchors[0], ...anchors.slice(1).filter(fits), ...fixed];
+  anchors.push([total, t1]);
+  anchors.sort((x, y) => x[0] - y[0]);
+  const mono = [anchors[0]]; for (const an of anchors.slice(1)){ const p = mono[mono.length - 1]; if (an[1] > p[1] && an[0] > p[0]) mono.push(an); }
+  if (mono[mono.length - 1][0] !== total) mono.push([total, Math.max(t1, mono[mono.length - 1][1] + .3)]);
+  return {total, at:sec => {
+    if (sec <= mono[0][1]) return 0;
+    for (let i = 1; i < mono.length; i++) if (sec <= mono[i][1]){ const [c0, s0] = mono[i - 1], [c1, s1] = mono[i]; return c0 + (c1 - c0) * (sec - s0) / (s1 - s0); }
+    return total; }};
+}
+/* Schrijft de tekst uit, synchroon met de stem. Een {boom} knalt op het luidste moment, een {q} wordt de gele vraag. */
+function typewrite(container, items, onDone, {vo, qEl}={}){
+  const t = { done:false, cancelled:false, nodes:[] };
+  items.forEach(it => {
+    if (typeof it === 'string') it = {text:it};
+    if (it.list){ const ul = document.createElement('ul'); ul.className = 'bulls'; container.append(ul); it.list.forEach(li => { const l = document.createElement('li'); ul.append(l); t.nodes.push({el:l, text:li + ' '}); }); return; }
+    if (it.hidden){ t.nodes.push({text:it.text, hidden:true}); return; }
+    if (it.boom){ t.nodes.push({text:it.text || (it.boom + '!'), boom:it.boom, para:it.para}); return; }
+    let el;
+    if (it.q && qEl){ el = qEl; el.textContent = ''; }
+    else { el = document.createElement(it.q ? 'div' : 'p'); if (it.q) el.className = 'q'; container.append(el); }
+    t.nodes.push({el, text:it.text, q:!!it.q, para:!!it.para});
+  });
+  const fireBoom = nd => { if (nd.fired) return; nd.fired = true; const b = document.createElement('span'); b.className = 'boom'; b.textContent = nd.boom + '!';
+    const after = t.nodes.slice(t.nodes.indexOf(nd) + 1).find(x => x.el && !x.q); if (after) after.el.before(b); else container.append(b);
+    SFX.boom(); shake(true); flash('alarm'); setTimeout(()=>SFX.alarm(6), 700); warp(8, 1200); burst(W/2, H/2, 80, '#ff9b4a'); };
+  const tl = voTimeline(vo, t.nodes);
+  let ticks = 0;
+  const render = n => { let pos = 0;
+    for (const nd of t.nodes){
+      const show = Math.max(0, Math.min(nd.text.length, Math.floor(n - pos))); pos += nd.text.length;
+      if (nd.boom){ if (show > 0) fireBoom(nd); continue; }
+      if (nd.hidden) continue;
+      if (nd.shown !== show){ nd.shown = show; nd.el.textContent = nd.text.slice(0, show); if (nd.q && show > 0) nd.el.classList.add('show'); }
+      nd.el.classList.toggle('cur', show > 0 && show < nd.text.length && !t.done);
+    } };
+  const step = () => {
+    if (t.cancelled || t.done) return;
+    const n = Math.min(tl.total, tl.at(clockNow()));
+    render(n); if (++ticks % 4 === 0 && n > 0 && n < tl.total) SFX.type();
+    if (n >= tl.total){ t.done = true; render(tl.total); onDone && onDone(); return; }
+    t.raf = requestAnimationFrame(step);
+  };
+  t.finish = () => { if (t.done) return; cancelAnimationFrame(t.raf); t.done = true; render(tl.total); onDone && onDone(); };
+  t.cancel = () => { t.cancelled = true; cancelAnimationFrame(t.raf); };
+  t.raf = requestAnimationFrame(step);
+  return t;
+}
+const plain = items => items.map(it => typeof it === 'string' ? it : it.list ? it.list.join(' ') : it.boom ? it.boom + '!' : '').join(' ');
+
+/* ============================================================
+   KNOPPEN
+   ============================================================ */
+function iconHTML(k){ if (!k) return ''; if (IC[k]) return IC[k]; return `<span style="font-size:26px;line-height:1">${k}</span>`; }
+function choiceButtons(n, id){
+  const wrap = document.createElement('div'); wrap.className = 'choices';
+  const anyMatch = n.choices.some(c => c.m && c.m());
+  n.choices.forEach((c, i) => {
+    const b = document.createElement('button'); b.className = 'btn';
+    const gated = !!c.m && gearComplete() && anyMatch;
+    const ok = !gated || c.m();
+    if (gated && ok) b.classList.add('mine');
+    if (gated && !ok && settings.strict) b.classList.add('locked');
+    b.innerHTML = `${iconHTML(c.icon)}<span>${c.label}${c.sub ? `<span class="sub">${c.sub}</span>` : gated && !ok ? `<span class="sub">niet ingepakt</span>` : gated ? `<span class="sub">jullie uitrusting</span>` : ''}</span><span class="kbd">${i+1}</span>`;
+    b.onmouseenter = () => SFX.hover();
+    b.onclick = e => { e.stopPropagation();
+      if (b.classList.contains('locked')){ SFX.lock(); b.animate([{transform:'translateX(-8px)'},{transform:'translateX(8px)'},{transform:'none'}], {duration:250}); return; }
+      SFX.select(); go(c.to, {label:c.label}); };
+    wrap.append(b);
+  });
+  return wrap;
+}
+function pickChoice(i){
+  const btns = stage.querySelectorAll('.choices .btn'); if (btns[i]) btns[i].click();
+}
+
+/* ============================================================
+   KAART (SVG)
+   ============================================================ */
+const LAYOUT = { A:{L:[240,300], X:[560,500], Y:[560,105]}, B:{L:[140,300], X:[720,500], Y:[720,105]} };
+const NODECOL = { L:['#ffb066','#e2701f'], X:['#8fd0ff','#3d8fd6'], Y:['#7ff0a8','#2fae62'] };
+const NODENAME = { L:'Landing', X:'Locatie X', Y:'Locatie Y' };
+function buildMap(m){
+  const P = Object.assign({}, LAYOUT[m.layout || 'A']);
+  const along = (on, t) => { const a = P[on[0]], b = P[on[1]]; return [a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t]; };
+  if (m.storm) P.S = along(m.storm.on, m.storm.t);
+  if (m.marker) P.M = along(m.marker.on, m.marker.t);
+  const isNode = k => 'LXY'.includes(k);
+  const erad = (dx, dy) => { const rx = 74, ry = 52, a = Math.atan2(dy, dx); return rx*ry / Math.hypot(ry*Math.cos(a), rx*Math.sin(a)) + 10; };
+  let edges = '', labels = '', delay = 0;
+  m.edges.forEach(e => {
+    let a = P[e.a].slice(), b = P[e.b].slice();
+    let dx = b[0]-a[0], dy = b[1]-a[1], len = Math.hypot(dx, dy), ux = dx/len, uy = dy/len, nx = -uy, ny = ux;
+    if (e.off){ a = [a[0]+nx*e.off, a[1]+ny*e.off]; b = [b[0]+nx*e.off, b[1]+ny*e.off]; }
+    const ra = isNode(e.a) ? erad(ux, uy) : 22, rb = isNode(e.b) ? erad(-ux, -uy) + 4 : 24;
+    const x1 = a[0]+ux*ra, y1 = a[1]+uy*ra, x2 = b[0]-ux*rb, y2 = b[1]-uy*rb, L = Math.hypot(x2-x1, y2-y1);
+    edges += `<line class="edge ${e.thin ? 'thin' : 'draw'}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" marker-end="url(#arr${e.thin ? 't' : ''})" style="--len:${L};${e.thin ? '' : `stroke-dasharray:${L};stroke-dashoffset:${L};`}animation-delay:${delay}s;${e.thin ? `opacity:0;animation:fadein .6s ${delay+.4}s forwards` : ''}"/>`;
+    const side = (e.side || 1) * (e.thin ? 34 : 50), mx = (x1+x2)/2 + nx*side, my = (y1+y2)/2 + ny*side;
+    const [l1, l2] = e.t.split('|');
+    labels += `<text class="lab" x="${mx}" y="${my-6}" style="animation-delay:${delay+.5}s"><tspan x="${mx}">${l1},</tspan><tspan x="${mx}" dy="26">${l2}</tspan></text>`;
+    delay += .25;
+  });
+  let nodes = '';
+  ['L','X','Y'].forEach((k, i) => {
+    const [x, y] = P[k], [c1, c2] = NODECOL[k];
+    nodes += `<g class="node" style="animation-delay:${i*.12}s">
+      <ellipse class="halo" cx="${x}" cy="${y}" rx="74" ry="52" stroke="${c1}"/>
+      <ellipse cx="${x}" cy="${y}" rx="74" ry="52" fill="url(#g${k})" filter="url(#glow)"/>
+      ${(m.done || []).includes(k) ? `<ellipse class="ring" cx="${x}" cy="${y}" rx="80" ry="58"/>` : ''}
+      <text x="${x}" y="${y+8}">${NODENAME[k]}</text></g>`;
+  });
+  let storm = '';
+  if (P.S) storm = `<g transform="translate(${P.S[0]} ${P.S[1]})"><g class="storm">
+      <circle r="62" fill="#9b6a3a" opacity=".45" filter="url(#cloud)"/><circle r="44" cx="10" fill="#b07a45" opacity=".55" filter="url(#cloud)"/><circle r="30" cx="-12" cy="6" fill="#c89055" opacity=".6" filter="url(#cloud)"/></g>
+      <circle r="17" fill="#b4432a" stroke="#ffd0b0" stroke-width="2"/></g>`;
+  let red = '';
+  if (m.red){ const p = P[m.red.at] || P.S; const [l1, l2] = m.red.t.split('|'); const x = p[0] + (m.red.dx || 0), y = p[1] + (m.red.dy || 0);
+    red = `<text class="lab red" x="${x}" y="${y}" style="animation-delay:1.8s"><tspan x="${x}">${l1},</tspan><tspan x="${x}" dy="28">${l2}</tspan></text>`; }
+  const defs = `<defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#dfe8ff"/></marker>
+    <marker id="arrt" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#c8d4f5"/></marker>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="cloud" x="-60%" y="-60%" width="220%" height="220%"><feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="3" seed="4"/><feDisplacementMap in="SourceGraphic" scale="34"/><feGaussianBlur stdDeviation="3"/></filter>
+    ${['L','X','Y'].map(k => `<radialGradient id="g${k}" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".25" stop-color="${NODECOL[k][0]}"/><stop offset="1" stop-color="${NODECOL[k][1]}"/></radialGradient>`).join('')}
+  </defs>`;
+  const svg = `<svg class="map" viewBox="0 0 900 600">${defs}${storm}${edges}<polyline class="trail" points=""/>${nodes}${labels}${red}
+    <g class="team" opacity="0"><circle class="glow" r="22"/><circle class="core" r="11"/></g></svg>`;
+  return { svg, P };
+}
+function animateTeam(root, P, m){
+  const team = root.querySelector('.team'), trail = root.querySelector('.trail');
+  let pts = null, loop = false, dur = 2600;
+  if (m.demo){ pts = ['L','X','Y','L'].map(k => P[k]); loop = true; dur = 6000; }
+  else if (m.trail) pts = m.trail.map(k => P[k]);
+  else if (m.land){ team.setAttribute('opacity', 1); team.setAttribute('transform', `translate(${P.L[0]} ${P.L[1]})`);
+    team.animate([{opacity:0}, {opacity:1}], {duration:600, delay:900, fill:'backwards'}); return; }
+  if (!pts) return;
+  const segs = []; let total = 0;
+  for (let i = 1; i < pts.length; i++){ const l = Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]); segs.push(l); total += l; }
+  const at = d => { let i = 0; while (i < segs.length - 1 && d > segs[i]){ d -= segs[i]; i++; } const t = Math.min(1, d / segs[i]); return [pts[i][0] + (pts[i+1][0]-pts[i][0])*t, pts[i][1] + (pts[i+1][1]-pts[i][1])*t, i]; };
+  const start = performance.now() + 1300;
+  const ease = t => t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2;
+  team.setAttribute('opacity', 1);
+  const tick = now => {
+    if (!root.isConnected) return;
+    let t = Math.max(0, (now - start) / dur); if (loop) t = t % 1; else t = Math.min(1, t);
+    const d = (loop ? t : ease(t)) * total, [x, y, si] = at(d);
+    team.setAttribute('transform', `translate(${x} ${y})`);
+    if (!loop){ const ptsDone = pts.slice(0, si + 1).concat([[x, y]]); trail.setAttribute('points', ptsDone.map(p => p.join(',')).join(' ')); }
+    if (loop || t < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+function gearChips(codes, crossed=[], heavy={}){
+  return `<div class="glist">${codes.map(c => `<span class="gi ${crossed.includes(c) ? 'x' : ''}">${IC[c]}${NAME[c]}${heavy[c] ? ` <small style="color:var(--muted)">(${heavy[c]})</small>` : ''}</span>`).join('')}</div>`;
+}
+function rowsHTML(rows, opts={}){
+  return `<div class="rows">${rows.map((r, i) => {
+    const me = r.m && gearComplete() && r.m();
+    let tone = r.tone || '';
+    if (r.n != null) tone = r.n >= .5 ? 'good' : r.n >= 0 ? 'warn' : 'bad';
+    const bar = (opts.bars && r.n != null) ? `<div class="wbar"><i class="${r.n >= 0 ? 'pos' : 'neg'}" data-w="${Math.min(70, Math.abs(r.n) * (r.n >= 0 ? 17 : 15))}"></i></div>` : '';
+    return `<div class="row ${tone} ${me ? 'me' : ''}" style="animation-delay:${.3 + i*.12 + (opts.d||0)}s"><span class="l">${r.l}</span>${r.v ? `<span class="v">${r.v}</span>` : '<span></span>'}${r.note ? `<span class="note">↻ ${r.note}</span>` : ''}${bar}</div>`;
+  }).join('')}</div>`;
+}
+
+/* ============================================================
+   SCÈNES RENDEREN
+   ============================================================ */
+const el = (html) => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstElementChild; };
+const RENDER = {
+  title(){
+    const word = (w, d) => [...w].map((ch, i) => `<span style="animation-delay:${d + i*.06}s">${ch}</span>`).join('');
+    const s = el(`<section class="title-scene">
+      <div class="rocket title-rocket">${IC.rocket}</div>
+      <div class="planet"><div class="ring back"></div><div class="ball"></div><div class="ring"></div><div class="orbit"><i></i></div></div>
+      <h1 class="big">${word('Ruimte', .2)}<br>${word('expeditie', .6)}</h1>
+      <div class="subtitle">Kunnen jullie de missie volbrengen?</div>
+      <button class="btn huge" id="startBtn">🚀 Start de simulatie</button>
+      <div class="fine">Zet je geluid aan · F = volledig scherm · spatie = verder</div>
+    </section>`);
+    s.querySelector('#startBtn').onclick = async e => {
+      e.stopPropagation(); audioInit(); applyAudio(); pickVoice();
+      SFX.launch(); warp(14, 2600); s.classList.add('launching'); shake(true);
+      speak('Ruimte expeditie. Kunnen jullie de missie volbrengen?', {vo:'titel'});
+      Object.assign(state, {gear:{}, day:null, samples:{X:false,Y:false}, flags:{}, route:[], history:[]});
+      // door naar de briefing zodra de stem de vraag heeft gesteld
+      runCues('titel', [{t:Math.max(2, voLen('titel') + .3), fn:() => go(2, {push:false})}]);
+    };
+    return s;
+  },
+  brief(n){
+    const s = el(`<section class="panel scan"><div class="msg-head"><div class="bars"><i></i><i></i><i></i><i></i></div>${n.head || 'Inkomend bericht · management'}</div>
+      <h1 class="t">${n.title}</h1><div class="txt"></div><div class="hint">Klik of druk op spatie ▸</div></section>`);
+    speak(n.title + '. ' + plain(n.text), {vo:n.vo});
+    typer = typewrite(s.querySelector('.txt'), voItems(n.vo, n.title) || n.text, () => s.querySelector('.hint').classList.add('show'), {vo:n.vo});
+    return s;
+  },
+  area(n){
+    const s = el(`<section class="panel"><div class="tag">Planeetscan</div><h1 class="t">Het gebied</h1>
+      <div class="holo"><div class="holo-planet"></div><div class="facts">
+        <div class="fact"><span class="em">☀️</span>Droog</div>
+        <div class="fact"><span class="em">🏜️</span>Woestijnachtig</div>
+        <div class="fact"><span class="em">💧</span>Mogelijk een waterbron bij locatie Y</div>
+      </div></div><div class="hint">Klik of druk op spatie ▸</div></section>`);
+    speak('Het gebied. Droog. Woestijnachtig. Mogelijk een waterbron bij locatie Y.', {vo:'gebied'});
+    // elk feitje verschijnt op het moment dat de stem het noemt
+    const facts = s.querySelectorAll('.fact');
+    runCues('gebied', [...[...facts].map((f, i) => ({onset:i + 1, est:(i + 1) * .24, fn:() => { f.classList.add('show'); SFX.beep(660 + i*220); }})),
+      {t:voLen('gebied') + .2, fn:() => s.querySelector('.hint').classList.add('show')}]);
+    return s;
+  },
+  story(n){
+    const s = el(`<section class="panel"><div class="story">
+      <div class="art ${n.warm ? 'warm' : ''} ${n.bad ? 'bad' : ''}"><div class="${n.artClass || 'a-float'}" style="width:100%;height:100%;display:grid;place-items:center">${IC[n.art] || ''}</div></div>
+      <div><div class="tag">${n.chap}${state.day != null && n.day != null ? ' · dag ' + n.day : ''}</div><h1 class="t">${n.title}</h1><div class="txt"></div>
+      ${n.q ? `<div class="q">${n.q}</div>` : ''}<div class="cwrap"></div><div class="hint">Klik of druk op spatie ▸</div></div></div></section>`);
+    const done = () => {
+      const q = s.querySelector('.q'); if (q && !q.textContent) q.textContent = n.q; if (q) q.classList.add('show');
+      if (n.choices){ s.querySelector('.cwrap').append(choiceButtons(n)); }
+      else s.querySelector('.hint').classList.add('show');
+    };
+    speak(n.title + '. ' + plain(n.text) + (n.q ? ' ' + n.q : ''), {vo:n.vo});
+    // met opname: ondertiteling van de stem (slotvraag in het gele vraagvak); zonder: de originele tekst
+    const sub = voItems(n.vo, n.title, true);
+    typer = typewrite(s.querySelector('.txt'), sub || n.text, done, {vo:n.vo, qEl:s.querySelector('.q')});
+    runCues(n.vo, n.cues);
+    return s;
+  },
+  map(n){
+    const m = n.map, {svg, P} = buildMap(m);
+    const boxes = [];
+    if (n.speed) boxes.push(`<div class="box"><h5>Snelheid</h5><div class="speed"><b>${n.speed}</b><span>km/dag</span></div></div>`);
+    if (n.gear) boxes.push(`<div class="box"><h5>Uitrusting</h5>${gearChips(n.gear, n.crossed)}</div>`);
+    (n.boxes || []).forEach(b => boxes.push(`<div class="box"><h5>${b.h}</h5>${b.html || rowsHTML(b.rows)}</div>`));
+    const s = el(`<section><div class="mapwrap">
+      <div class="mapbox"><div class="mt">${m.title || n.title}</div>${svg}</div>
+      <div class="side">${n.tag ? `<div class="tag">${n.tag}</div><h1 class="t" style="margin-bottom:6px">${n.title}</h1>` : ''}${boxes.join('')}<div class="cwrap"></div><div class="hint">Klik of druk op spatie ▸</div></div>
+    </div></section>`);
+    animateTeam(s, P, m);
+    if (m.storm) setTimeout(() => SFX.rumble(1.5), 1400);
+    speak(n.say || n.title, {vo:n.vo});
+    // keuzeknoppen pas als de stem de vraag heeft gesteld
+    runCues(n.vo, [{t:n.vo ? Math.max(1.5, voLen(n.vo)) : 1.5, fn:() => { if (!s.isConnected) return; if (n.choices) s.querySelector('.cwrap').append(choiceButtons(n)); else s.querySelector('.hint').classList.add('show'); }}]);
+    return s;
+  },
+  data(n){
+    const locs = n.locs;
+    const s = el(`<section class="panel"><div class="tag">Rekenen · snelheid ${n.speed} km/dag</div><h1 class="t">${n.title}</h1>
+      <div class="data">
+        <div class="side">
+          <div class="box"><h5>Uitrusting</h5>${gearChips(n.gear, n.crossed, n.heavy)}</div>
+          <div class="box"><h5>Bodemmonsters</h5><div class="locs">
+            <div class="loc ${locs.X ? 'ok' : 'no'}">${locs.X ? '✔' : '✖'} Locatie X</div>
+            <div class="loc ${locs.Y ? 'ok' : 'no'}">${locs.Y ? '✔' : '✖'} Locatie Y ${locs.Ywater ? '<small>+ water</small>' : ''}</div></div></div>
+          <div class="box"><h5>Aantal dagen tot terugkeer bij de landingsplaats</h5>${n.days.map((g, gi) => `<div class="rgroup">${g.g}</div>${rowsHTML(g.rows, {d:gi*.3})}`).join('')}</div>
+        </div>
+        <div class="side">
+          <div class="box"><h5>Water over bij aankomst</h5>${n.water.map((g, gi) => `<div class="rgroup">${g.g}</div>${rowsHTML(g.rows, {bars:true, d:.6 + gi*.3})}`).join('')}
+            <div class="legend">Groen = water over · rood = dagen zonder water. Iemand overleeft hooguit ongeveer 1 dag zonder water.</div></div>
+          <div class="cwrap"></div><div class="hint">Klik of druk op spatie ▸</div>
+        </div>
+      </div></section>`);
+    setTimeout(() => s.querySelectorAll('.wbar i').forEach(i => i.style.width = i.dataset.w + '%'), 200);
+    speak('Tijd om te rekenen! Zoek jullie uitrusting op en kijk hoeveel water er overblijft.', {vo:'rekenen'});
+    runCues('rekenen', [{t:Math.max(1.8, voLen('rekenen')), fn:() => { if (!s.isConnected) return; if (n.choices) s.querySelector('.cwrap').append(choiceButtons(n)); else s.querySelector('.hint').classList.add('show'); }}]);
+    return s;
+  },
+  gear(){
+    state.gear = {}; state.flags = {}; state.samples = {X:false, Y:false}; state.day = null;
+    const s = el(`<section class="panel"><div class="gear-top"><div><div class="tag">Paklijst · laadruim</div><h1 class="t" style="margin:0">Kies je uitrusting</h1></div><div class="steps">${CATS.map(() => '<i></i>').join('')}</div></div>
+      <div class="cardzone"></div>
+      <div class="bay"><span class="lbl">Laadruim</span><div class="slots">${CATS.map(c => `<div class="slot" data-c="${c}"></div>`).join('')}</div>
+      <div class="meter"><div class="bar"><i></i></div><div class="cap"><span>GEWICHT</span><span class="wl">0%</span></div></div></div></section>`);
+    let ci = 0;
+    const show = () => {
+      s.querySelectorAll('.steps i').forEach((d, i) => d.className = i < ci ? 'done' : i === ci ? 'on' : '');
+      const c = CATS[ci], g = GEAR[c];
+      const zone = s.querySelector('.cardzone');
+      zone.innerHTML = `<div class="tag" style="margin-top:16px">Categorie ${ci+1} van 4 · ${g.cat}</div><div class="cards">${g.opts.map((o, i) => `
+        ${i ? '<div class="or">OF</div>' : ''}<div class="card" data-code="${o.code}" tabindex="0"><div class="ic">${IC[o.code]}</div><h3>${o.name}</h3><p>${o.desc}</p>
+        <div class="weight">${o.w >= 3 ? 'zwaar' : 'licht'}<div class="bar"><i style="width:${o.w/3.5*100}%;background:${o.w >= 3 ? 'var(--orange)' : 'var(--green)'}"></i></div></div>
+        <button class="btn pick">Inpakken <span class="kbd">${i+1}</span></button></div>`).join('')}</div>`;
+      if (ci === 0) speak('Pak je uitrusting in! Kies per categorie één voorwerp.', {vo:'uitrusting'});
+      zone.querySelectorAll('.card').forEach(card => {
+        card.onmouseenter = () => SFX.hover();
+        card.onclick = e => { e.stopPropagation(); pick(card); };
+      });
+    };
+    const pick = card => {
+      if (s.dataset.lock) return; s.dataset.lock = 1;
+      const c = CATS[ci], code = card.dataset.code; state.gear[c] = code; SFX.select();
+      const slot = s.querySelector(`.slot[data-c="${c}"]`), from = card.querySelector('.ic svg').getBoundingClientRect(), to = slot.getBoundingClientRect();
+      const fl = document.createElement('div'); fl.className = 'flyer'; fl.innerHTML = IC[code]; Object.assign(fl.style, {left:from.left + 'px', top:from.top + 'px', width:from.width + 'px', height:from.height + 'px'});
+      document.body.append(fl);
+      fl.animate([{transform:'none', opacity:1}, {transform:`translate(${(to.left - from.left)*.5}px, ${(to.top - from.top)*.5 - 120}px) scale(.9) rotate(180deg)`, offset:.5}, {transform:`translate(${to.left - from.left + (to.width - from.width)/2}px, ${to.top - from.top + (to.height - from.height)/2}px) scale(${to.width/from.width*.7}) rotate(360deg)`, opacity:1}], {duration:800, easing:'cubic-bezier(.5,0,.3,1)'}).onfinish = () => {
+        fl.remove(); slot.innerHTML = IC[code]; slot.classList.add('full'); slot.animate([{transform:'scale(1.4)'}, {transform:'none'}], {duration:300}); SFX.zip();
+        burst(to.left + to.width/2, to.top + to.height/2, 24, '#5ef2ff');
+        const w = CATS.reduce((a, k) => a + (state.gear[k] ? GEAR[k].opts.find(o => o.code === state.gear[k]).w : 0), 0), pct = Math.round(w / 11 * 100);
+        s.querySelector('.meter i').style.width = pct + '%'; s.querySelector('.wl').textContent = pct + '%';
+        delete s.dataset.lock; ci++;
+        if (ci < CATS.length) show(); else { s.querySelectorAll('.steps i').forEach(d => d.className = 'done'); setTimeout(() => go(10), 600); }
+      };
+    };
+    s.pickIndex = i => { const cards = s.querySelectorAll('.card'); if (cards[i]) pick(cards[i]); };
+    show(); updateHUD();
+    return s;
+  },
+  overview(){
+    const s = el(`<section class="panel"><div class="tag">Paklijst compleet</div><h1 class="t">Jullie uitrusting</h1>
+      <div class="overview">${CATS.map((c, i) => `<div class="ov" style="animation-delay:${i*.12}s">${IC[state.gear[c]]}<div class="c">${GEAR[c].cat}</div><div class="n">${NAME[state.gear[c]]}</div></div>`).join('')}</div>
+      <div class="txt"><p>Alles zit in het laadruim. Tijd om te vertrekken!</p></div>
+      <div class="choices"><button class="btn huge" id="launch">🚀 Lanceren <span class="kbd">1</span></button><button class="btn ghost" id="again">↺ Opnieuw kiezen <span class="kbd">2</span></button></div></section>`);
+    speak('Alles zit in het laadruim. Klaar om te lanceren?', {vo:'laadruim'});
+    s.querySelector('#again').onclick = e => { e.stopPropagation(); SFX.click(); go('gear'); };
+    s.querySelector('#launch').onclick = async e => {
+      e.stopPropagation(); if (s.dataset.go) return; s.dataset.go = 1; SFX.click(); stopSpeak();
+      const cd = $('#countdown');
+      // de cijfers verschijnen precies als de stem ze uitspreekt
+      speak('Drie, twee, één, lancering!', {vo:'aftellen'});
+      const num = t => { cd.innerHTML = '<span>' + t + '</span>'; SFX.beep(t === '1' ? 1200 : 800); shake(); };
+      runCues('aftellen', [
+        {onset:0, est:0, fn:() => num('3')}, {onset:1, est:.25, fn:() => num('2')}, {onset:2, est:.5, fn:() => num('1')},
+        {onset:3, est:.75, fn:() => { cd.innerHTML = '<span style="font-size:min(16vmin,160px)">LIFT-OFF!</span>'; SFX.launch(); warp(18, 3000); shake(true); flash('white');
+          setTimeout(() => { cd.innerHTML = ''; go(11); }, 2200); }}]);
+    };
+    return s;
+  },
+  end(n, id){
+    const k = n.kind;
+    const stampCls = {promo:'gold', success:'cyan', one:'cyan', none:'', dead:'', abort:''}[k];
+    const s = el(`<section class="panel end">
+      <div class="art ${k === 'dead' || k === 'abort' ? 'bad' : k === 'promo' ? 'warm' : ''}"><div class="${{promo:'a-pulse', success:'a-float', one:'a-float', none:'a-wobble', dead:'a-float', abort:'a-glitch'}[k]}" style="width:100%;height:100%;display:grid;place-items:center">${IC[n.art]}</div></div>
+      <h1 class="t">${n.title}</h1>
+      <div class="stamp ${stampCls}" style="visibility:hidden">${n.stamp}</div>
+      ${k === 'dead' ? '<svg class="ecg" viewBox="0 0 520 90"><path d="M0 45h80l10-30 12 60 10-40 8 10h70l10-30 12 60 10-40 8 10h60l8-18 8 30 8-12h196"/></svg>' : ''}
+      <div class="txt"></div><div class="cwrap" style="display:flex;justify-content:center"></div><div class="hint">Klik of druk op spatie ▸</div></section>`);
+    if (k === 'promo'){ SFX.fanfare(); confetti(260); }
+    if (k === 'success'){ SFX.success(); confetti(120); warp(3, 2000); }
+    if (k === 'one'){ SFX.success(); }
+    if (k === 'none'){ SFX.sad(); }
+    if (k === 'dead'){ SFX.fail(); SFX.flatline(); }
+    if (k === 'abort'){ SFX.sputter(); setTimeout(() => SFX.glitch(), 1500); flash('alarm'); shake(); }
+    if (RANK[id] && gearComplete()){ const key = CATS.map(c => state.gear[c]).join(''); const prev = store.combos[key]; if (!prev || RANK[id] > RANK[prev]) store.combos[key] = id; state.lastEnd = id; persist(); }
+    speak(n.title + ' ' + plain(n.text), {vo:n.vo});
+    typer = typewrite(s.querySelector('.txt'), voItems(n.vo, n.title) || n.text, () => { if (n.choices) s.querySelector('.cwrap').append(choiceButtons(n)); else s.querySelector('.hint').classList.add('show'); }, {vo:n.vo});
+    // de stempel slaat neer zodra de stem na de titel verdergaat
+    runCues(n.vo, [{onset:1, est:.12, fn:() => { const st = s.querySelector('.stamp'); st.style.visibility = 'visible'; st.style.animation = 'none'; void st.offsetWidth; st.style.animation = ''; SFX.stamp(); if (k === 'promo') confetti(160); }}]);
+    return s;
+  },
+  final(){
+    const key = gearComplete() ? CATS.map(c => state.gear[c]).join('') : '';
+    const all = []; ['S','K'].forEach(a => ['H','Z'].forEach(b => ['T','D'].forEach(c => ['V','F'].forEach(d => all.push(a+b+c+d)))));
+    const found = all.filter(k => store.combos[k]).length;
+    const short = {S:'Sat', K:'Ster', H:'Hand', Z:'Zon', T:'Tent', D:'Deken', V:'Voorraad', F:'Filter'};
+    const s = el(`<section class="panel"><div class="final-grid">
+      <div><div class="tag">Simulatie afgerond</div><h1 class="t">Wat nu?</h1>
+        <div class="txt"><p>Gefeliciteerd! Jullie hebben één van de 16 uitrustingscombinaties uitgeprobeerd. Niet tevreden met het resultaat? Probeer het gewoon nog een keer!</p><p>Of probeer juist de <b style="color:var(--red)">slechtste</b> combinatie te vinden…</p></div>
+        ${state.route.length ? `<h5 style="font-family:var(--font);letter-spacing:.2em;color:var(--muted);margin:16px 0 4px">JULLIE ROUTE</h5><div class="route" style="justify-content:flex-start">${state.route.map(r => `<span>${r}</span>`).join('')}</div>` : ''}
+        <div class="choices"><button class="btn" id="again">↻ Nog een keer <span class="kbd">1</span></button><button class="btn ghost" id="reset">⟲ Reset simulatie <span class="kbd">2</span></button></div></div>
+      <div><div class="box"><h5>Ontdekte combinaties · ${found} van 16</h5><div class="grid16">${all.map(k => { const e = store.combos[k]; return `<div class="cell ${e ? 'found' : ''} ${k === key ? 'now' : ''}" title="${[...k].map(c => NAME[c]).join(' + ')}"><span class="e">${e ? ENDINFO[e].e : '❔'}</span>${[...k].map(c => short[c]).join(' · ')}</div>`; }).join('')}</div>
+        <div class="legend">🏅 promotie · 🚀 missie volbracht · 🧪 één monster · 📦 pakezel · 💀 niet iedereen haalt het</div></div></div>
+    </div></section>`);
+    s.querySelector('#again').onclick = e => { e.stopPropagation(); SFX.click(); state.route = []; state.history = []; go('gear'); };
+    s.querySelector('#reset').onclick = e => { e.stopPropagation(); SFX.click(); state.route = []; state.history = []; go(1, {push:false}); };
+    speak('Wat nu? Jullie hebben één van de zestien uitrustingscombinaties uitgeprobeerd. Probeer het nog een keer, of zoek juist de slechtste combinatie!', {vo:'watnu'});
+    return s;
+  },
+};
+
+/* ============================================================
+   HUD
+   ============================================================ */
+function updateHUD(){
+  $('#dayVal').textContent = state.day == null ? '–' : state.day;
+  $('#hudSlots').innerHTML = CATS.map(c => { const g = state.gear[c]; if (!g) return '<div class="slot"></div>';
+    const broken = g === 'Z' && state.flags.zonBroken, half = c === 'water' && state.flags.waterHalf;
+    return `<div class="slot full ${broken ? 'broken' : ''}" title="${NAME[g]}">${IC[g]}${half ? '<span class="half">½</span>' : ''}</div>`; }).join('');
+  $('#vX').classList.toggle('ok', !!state.samples.X); $('#vY').classList.toggle('ok', !!state.samples.Y);
+  $('#bSound').classList.toggle('off', !settings.sound); $('#bSound').textContent = settings.sound ? '🔊' : '🔇';
+  $('#bMusic').classList.toggle('off', !settings.music); $('#bVoice').classList.toggle('off', !settings.voice);
+  $('#bBack').style.visibility = state.history.length ? 'visible' : 'hidden';
+}
+
+/* ============================================================
+   BEDIENING
+   ============================================================ */
+stage.addEventListener('click', e => { if (e.target.closest('button,select,input,.card')) return; audioInit(); advance(); });
+addEventListener('keydown', e => {
+  if (e.target.closest('select,input')) return;
+  const k = e.key.toLowerCase();
+  if (k === ' ' || k === 'enter' || k === 'arrowright'){ e.preventDefault(); if (state.current === 1){ $('#startBtn') && $('#startBtn').click(); return; } advance(); }
+  else if (k === 'backspace' || k === 'arrowleft'){ e.preventDefault(); back(); }
+  else if (['1','2','3'].includes(k)){
+    const i = +k - 1, sc = stage.firstElementChild;
+    if (sc && sc.pickIndex) sc.pickIndex(i); else { const b = stage.querySelectorAll('.choices .btn')[i]; if (b) b.click(); }
+  }
+  else if (k === 'f') toggleFull();
+  else if (k === 'v') toggleVoice();
+  else if (k === 'm') toggleMusic();
+  else if (k === 'g') toggleSound();
+  else if (k === 'escape') $('#settings').classList.remove('open');
+});
+function toggleFull(){ if (!document.fullscreenElement) document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(()=>{}); else document.exitFullscreen(); }
+function toggleVoice(){ settings.voice = !settings.voice; if (!settings.voice) stopSpeak(); persist(); updateHUD(); }
+function toggleMusic(){ audioInit(); settings.music = !settings.music; applyAudio(); persist(); updateHUD(); }
+function toggleSound(){ audioInit(); settings.sound = !settings.sound; applyAudio(); persist(); updateHUD(); }
+$('#bFull').onclick = toggleFull; $('#bVoice').onclick = toggleVoice; $('#bMusic').onclick = toggleMusic; $('#bSound').onclick = toggleSound; $('#bBack').onclick = back;
+$('#bSet').onclick = e => { e.stopPropagation(); pickVoice(); $('#settings').classList.toggle('open'); };
+document.addEventListener('click', e => { if (!e.target.closest('#settings,#bSet')) $('#settings').classList.remove('open'); });
+$('#sRate').value = settings.rate; $('#sMusVol').value = settings.musVol; $('#sSfxVol').value = settings.sfxVol; $('#sAmbVol').value = settings.ambVol; $('#sStrict').checked = settings.strict; $('#sFallback').checked = settings.fallback;
+$('#sFallback').onchange = e => { settings.fallback = e.target.checked; persist(); };
+$('#sRate').oninput = e => { settings.rate = +e.target.value; persist(); };
+
+$('#sMusVol').oninput = e => { settings.musVol = +e.target.value; applyAudio(); persist(); };
+$('#sSfxVol').oninput = e => { settings.sfxVol = +e.target.value; applyAudio(); persist(); };
+$('#sSfxVol').onchange = () => SFX.click();
+$('#sAmbVol').oninput = e => { settings.ambVol = +e.target.value; applyAudio(); persist(); };
+$('#sStrict').onchange = e => { settings.strict = e.target.checked; persist(); const n = N[state.current]; if (n && n.choices){ const w = stage.querySelector('.choices'); if (w) w.replaceWith(choiceButtons(n)); } };
+$('#sVoice').onchange = e => { settings.voiceURI = e.target.value; persist(); pickVoice(); stopSpeak(); speakBrowser('Hallo, ik ben jullie reservestem.'); };
+$('#sClear').onclick = () => { store.combos = {}; persist(); $('#sClear').textContent = 'gewist ✓'; };
+
+pickVoice();
+go(1, {push:false});
+</script>
+</body>
+</html>
